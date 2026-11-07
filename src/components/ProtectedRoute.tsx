@@ -2,8 +2,12 @@ import React from 'react'
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
 
-export default function ProtectedRoute() {
-  const { user, isLoading } = useAuth()
+interface ProtectedRouteProps {
+  apenasAdmin?: boolean
+}
+
+export default function ProtectedRoute({ apenasAdmin = false }: ProtectedRouteProps) {
+  const { user, isLoading, status, isAdmin } = useAuth()
 
   if (isLoading) {
     return (
@@ -18,6 +22,29 @@ export default function ProtectedRoute() {
 
   if (!user) {
     return <Navigate to="/login" replace />
+  }
+
+  // Guarda de aprovação: pendente ou bloqueado volta ao login com a mensagem
+  if (status !== 'aprovado') {
+    const msg =
+      status === 'bloqueado'
+        ? 'Sua conta está bloqueada. Procure o administrador.'
+        : 'Cadastro recebido. Aguarde a aprovação do administrador.'
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{
+          bloqueio: msg,
+          icon: status === 'bloqueado' ? 'lock' : 'clock',
+        }}
+      />
+    )
+  }
+
+  // Guarda de perfil de administrador
+  if (apenasAdmin && !isAdmin) {
+    return <Navigate to="/" replace />
   }
 
   return <Outlet />

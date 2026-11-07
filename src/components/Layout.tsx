@@ -1,225 +1,412 @@
-import React, { useState } from 'react'
-import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { useAuth } from '@/context/AuthContext'
+import React, { useState, useEffect } from 'react'
+import { Link, useLocation, Outlet } from 'react-router-dom'
 import {
-  Snowflake,
-  Cpu,
-  FileSpreadsheet,
   Layers,
-  Calculator,
-  Percent,
+  Database,
+  Upload,
+  Sliders,
+  DollarSign,
+  FileSpreadsheet,
   ShoppingCart,
-  LogOut,
-  User,
   Menu,
   X,
-  ChevronRight,
-  Shield,
-  FileSignature,
+  Snowflake,
+  LogOut,
+  User,
+  Users,
+  ShieldCheck,
+  KeyRound,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-
-const navItems = [
-  { path: '/componentes', label: 'Componentes', icon: Cpu },
-  { path: '/importar', label: 'Importar Planilha', icon: FileSpreadsheet },
-  { path: '/boms', label: 'BOMs por SKU', icon: Layers },
-  { path: '/precificacao', label: 'Precificação', icon: Calculator },
-  { path: '/parametros', label: 'Parâmetros', icon: Percent },
-  { path: '/compras', label: 'Lista de Compras', icon: ShoppingCart },
-  { path: '/propostas', label: 'Propostas', icon: FileSignature },
-  { path: '/pedidos-compra', label: 'Compras', icon: ShoppingCart },
-]
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useAuth } from '@/context/AuthContext'
+import { usuariosService } from '@/services/usuarios'
+import { toast } from 'sonner'
 
 export default function Layout() {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
   const location = useLocation()
+  const { user, perfil, isAdmin, logout, alterarSenha } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [pendentesCount, setPendentesCount] = useState<number>(0)
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  // Estado do modal de "Alterar Senha" do usuário logado
+  const [alterarSenhaOpen, setAlterarSenhaOpen] = useState(false)
+  const [senhaAtual, setSenhaAtual] = useState('')
+  const [novaSenha, setNovaSenha] = useState('')
+  const [novaSenhaConfirm, setNovaSenhaConfirm] = useState('')
+  const [salvandoSenha, setSalvandoSenha] = useState(false)
+
+  // Se for admin, carrega e monitora a contagem de cadastros pendentes
+  useEffect(() => {
+    if (!isAdmin) return
+
+    let isMounted = true
+    const carregarPendentes = async () => {
+      try {
+        const lista = await usuariosService.getAll()
+        if (isMounted) {
+          const count = lista.filter((u) => u.status === 'pendente').length
+          setPendentesCount(count)
+        }
+      } catch (err) {
+        // silencioso
+      }
+    }
+
+    carregarPendentes()
+    const timer = setInterval(carregarPendentes, 15000)
+    return () => {
+      isMounted = false
+      clearInterval(timer)
+    }
+  }, [isAdmin, location.pathname])
+
+  const handleSalvarSenha = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!senhaAtual) {
+      toast.error('Informe a senha atual.')
+      return
+    }
+    if (novaSenha.length < 8) {
+      toast.error('A nova senha deve ter no mínimo 8 caracteres.')
+      return
+    }
+    if (novaSenha !== novaSenhaConfirm) {
+      toast.error('A confirmação da nova senha não confere.')
+      return
+    }
+
+    setSalvandoSenha(true)
+    try {
+      await alterarSenha(senhaAtual, novaSenha)
+      toast.success('Senha alterada com sucesso!')
+      setAlterarSenhaOpen(false)
+      setSenhaAtual('')
+      setNovaSenha('')
+      setNovaSenhaConfirm('')
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao alterar senha.')
+    } finally {
+      setSalvandoSenha(false)
+    }
   }
 
+  // Links do menu lateral:
+  // - Usuário comum: Painel, Componentes, Importação, BOMs, Precificação, Propostas, Compras
+  // - Administrador: Todos os anteriores + Usuários e Parâmetros Financeiros
+  const navItems = [
+    { href: '/', label: 'Painel Geral', icon: Layers, adminOnly: false },
+    { href: '/componentes', label: 'Componentes', icon: Database, adminOnly: false },
+    { href: '/importar', label: 'Importar Componentes', icon: Upload, adminOnly: false },
+    { href: '/boms', label: 'Engenharia de BOMs', icon: Snowflake, adminOnly: false },
+    { href: '/precificacao', label: 'Simular Precificação', icon: DollarSign, adminOnly: false },
+    { href: '/propostas', label: 'Propostas Comerciais', icon: FileSpreadsheet, adminOnly: false },
+    { href: '/compras', label: 'Módulo de Compras', icon: ShoppingCart, adminOnly: false },
+    {
+      href: '/usuarios',
+      label: 'Usuários',
+      icon: Users,
+      adminOnly: true,
+      badge: pendentesCount > 0 ? pendentesCount : undefined,
+    },
+    {
+      href: '/parametros',
+      label: 'Parâmetros Financeiros',
+      icon: Sliders,
+      adminOnly: true,
+    },
+  ]
+
+  const filteredNavItems = navItems.filter((item) => !item.adminOnly || isAdmin)
+
   return (
-    <div className="min-h-screen bg-background flex flex-col antialiased">
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-40 w-full border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/75">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          {/* Logo e Nome */}
-          <div className="flex items-center gap-3">
-            <NavLink to="/" className="flex items-center gap-2.5 group">
-              <div className="w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shadow-primary/20 group-hover:scale-105 transition-transform">
-                <Snowflake className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-base text-foreground tracking-tight">
-                    ERP Refrigeração
-                  </span>
-                  <Badge
-                    variant="secondary"
-                    className="text-[10px] px-1.5 py-0 h-4 uppercase font-semibold tracking-wider"
-                  >
-                    PROD
-                  </Badge>
-                </div>
-                <span className="text-[11px] text-muted-foreground block -mt-0.5">
-                  Engenharia de BOM & Custos
-                </span>
-              </div>
-            </NavLink>
-          </div>
-
-          {/* Navegação Desktop */}
-          <nav className="hidden lg:flex items-center gap-1">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive =
-                location.pathname === item.path ||
-                (item.path !== '/' && location.pathname.startsWith(item.path))
-
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'bg-primary/10 text-primary font-semibold'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </NavLink>
-              )
-            })}
-          </nav>
-
-          {/* Usuário / Logout */}
-          <div className="hidden sm:flex items-center gap-3">
-            {user ? (
-              <div className="flex items-center gap-2.5 pl-3 border-l border-border">
-                <div className="text-right hidden md:block">
-                  <p className="text-xs font-semibold text-foreground truncate max-w-[140px]">
-                    {user.name || user.email.split('@')[0]}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground truncate max-w-[140px] font-mono">
-                    {user.email}
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                  onClick={handleLogout}
-                  title="Sair da Conta"
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <NavLink to="/login">
-                <Button size="sm" variant="default" className="text-xs">
-                  Entrar
-                </Button>
-              </NavLink>
-            )}
-          </div>
-
-          {/* Botão Menu Mobile */}
-          <div className="flex lg:hidden items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              aria-label="Abrir menu"
-            >
-              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
-          </div>
+    <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
+      {/* Sidebar Desktop */}
+      <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border bg-card/60 backdrop-blur-sm">
+        <div className="p-4 border-b border-border flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">
+              <Snowflake className="h-5 w-5" />
+            </div>
+            <div>
+              <span className="font-bold text-sm tracking-tight block">Vittorio Design</span>
+              <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider block">
+                ERP Refrigeração
+              </span>
+            </div>
+          </Link>
         </div>
 
-        {/* Menu Mobile Dropdown */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-border bg-card p-4 space-y-2">
-            {navItems.map((item) => {
-              const Icon = item.icon
-              const isActive =
-                location.pathname === item.path ||
-                (item.path !== '/' && location.pathname.startsWith(item.path))
-
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center justify-between p-2.5 rounded-lg text-sm font-medium ${
-                    isActive
-                      ? 'bg-primary/10 text-primary font-semibold'
-                      : 'text-muted-foreground hover:bg-muted'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className="h-4 w-4" />
-                    {item.label}
-                  </div>
-                  <ChevronRight className="h-4 w-4 opacity-50" />
-                </NavLink>
-              )
-            })}
-
-            <div className="pt-3 border-t border-border flex items-center justify-between">
-              {user ? (
-                <>
-                  <div className="text-xs">
-                    <p className="font-semibold text-foreground">{user.name || user.email}</p>
-                    <p className="text-muted-foreground">{user.email}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleLogout}
-                    className="text-xs gap-1"
+        <nav className="flex-1 p-3 space-y-1">
+          {filteredNavItems.map((item) => {
+            const Icon = item.icon
+            const active =
+              item.href === '/'
+                ? location.pathname === '/'
+                : location.pathname.startsWith(item.href)
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                className={`flex items-center justify-between px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
+                  active
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 truncate">
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </div>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className={`text-[10px] h-5 px-1.5 font-bold ${
+                      active
+                        ? 'bg-primary-foreground text-primary'
+                        : 'bg-amber-500 text-white dark:bg-amber-600'
+                    }`}
                   >
-                    <LogOut className="h-3.5 w-3.5" />
-                    Sair
-                  </Button>
-                </>
-              ) : (
-                <NavLink to="/login" className="w-full">
-                  <Button size="sm" className="w-full">
-                    Acessar ERP
-                  </Button>
-                </NavLink>
+                    {item.badge}
+                  </Badge>
+                )}
+              </Link>
+            )
+          })}
+        </nav>
+
+        {/* Perfil do Usuário e Menu de Ações */}
+        <div className="p-3 border-t border-border bg-muted/20">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center gap-2.5 p-2 rounded-lg hover:bg-muted/60 transition-colors text-left">
+                <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+                  <User className="h-4 w-4 text-primary" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-foreground truncate">
+                    {user?.name || user?.email || 'Usuário'}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1 font-mono">
+                    <ShieldCheck className="h-3 w-3 text-primary inline" />
+                    {perfil === 'admin' ? 'Administrador' : 'Usuário'}
+                  </p>
+                </div>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="font-normal text-xs">
+                <div className="font-medium text-foreground truncate">
+                  {user?.name || 'Usuário'}
+                </div>
+                <div className="text-[11px] text-muted-foreground font-mono truncate">
+                  {user?.email}
+                </div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-xs cursor-pointer gap-2"
+                onClick={() => setAlterarSenhaOpen(true)}
+              >
+                <KeyRound className="h-4 w-4" />
+                Alterar senha
+              </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem className="text-xs cursor-pointer gap-2" asChild>
+                  <Link to="/usuarios">
+                    <Users className="h-4 w-4" />
+                    Gerenciar usuários
+                  </Link>
+                </DropdownMenuItem>
               )}
-            </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-xs cursor-pointer text-destructive focus:text-destructive gap-2"
+                onClick={logout}
+              >
+                <LogOut className="h-4 w-4" />
+                Sair do sistema
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </aside>
+
+      {/* Header Mobile */}
+      <header className="md:hidden border-b border-border bg-card/80 backdrop-blur-sm p-3 flex items-center justify-between sticky top-0 z-20">
+        <Link to="/" className="flex items-center gap-2">
+          <div className="h-7 w-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">
+            <Snowflake className="h-4 w-4" />
           </div>
-        )}
+          <div>
+            <span className="font-bold text-xs tracking-tight">Vittorio Design</span>
+          </div>
+        </Link>
+        <div className="flex items-center gap-1">
+          {pendentesCount > 0 && isAdmin && (
+            <Link to="/usuarios">
+              <Badge className="bg-amber-500 text-white text-[10px] px-1.5 h-5">
+                {pendentesCount}
+              </Badge>
+            </Link>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="h-8 w-8"
+          >
+            {mobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </Button>
+        </div>
       </header>
 
+      {/* Menu Mobile */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-b border-border bg-card p-3 space-y-1">
+          {filteredNavItems.map((item) => {
+            const Icon = item.icon
+            const active =
+              item.href === '/'
+                ? location.pathname === '/'
+                : location.pathname.startsWith(item.href)
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center justify-between px-3 py-2 text-xs font-medium rounded-lg ${
+                  active
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </div>
+                {item.badge !== undefined && item.badge > 0 && (
+                  <Badge variant="secondary" className="text-[10px] h-5 bg-amber-500 text-white">
+                    {item.badge}
+                  </Badge>
+                )}
+              </Link>
+            )
+          })}
+          <div className="pt-2 border-t border-border flex flex-col gap-1">
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false)
+                setAlterarSenhaOpen(true)
+              }}
+              className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:bg-muted rounded-lg text-left"
+            >
+              <KeyRound className="h-4 w-4" />
+              <span>Alterar senha</span>
+            </button>
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 px-3 py-2 text-xs text-destructive hover:bg-destructive/10 rounded-lg text-left"
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Sair do sistema</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Conteúdo Principal */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full overflow-y-auto">
         <Outlet />
       </main>
 
-      {/* Rodapé Corporativo */}
-      <footer className="border-t border-border bg-card/60 py-4 mt-auto print:hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-          <p>
-            © {new Date().getFullYear()} ERP Indústria de Refrigeração Comercial — Módulo de
-            Engenharia e Custos
-          </p>
-          <div className="flex items-center gap-4">
-            <span>Balcão Strongest</span>
-            <span>•</span>
-            <span>Vitrine Aprezzo</span>
-            <span>•</span>
-            <span>Expositor Fredda</span>
-          </div>
-        </div>
-      </footer>
+      {/* Diálogo "Alterar Senha" do Usuário Logado */}
+      <Dialog open={alterarSenhaOpen} onOpenChange={setAlterarSenhaOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary" />
+              Alterar Minha Senha
+            </DialogTitle>
+            <DialogDescription>
+              Informe sua senha atual para validação de segurança e defina a nova senha.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSalvarSenha} className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="senha-atual">Senha Atual *</Label>
+              <Input
+                id="senha-atual"
+                type="password"
+                value={senhaAtual}
+                onChange={(e) => setSenhaAtual(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="senha-nova">Nova Senha (mínimo 8 caracteres) *</Label>
+              <Input
+                id="senha-nova"
+                type="password"
+                value={novaSenha}
+                onChange={(e) => setNovaSenha(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={8}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="senha-nova-confirm">Confirmar Nova Senha *</Label>
+              <Input
+                id="senha-nova-confirm"
+                type="password"
+                value={novaSenhaConfirm}
+                onChange={(e) => setNovaSenhaConfirm(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={8}
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAlterarSenhaOpen(false)}
+                disabled={salvandoSenha}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={salvandoSenha}>
+                {salvandoSenha ? 'Alterando...' : 'Salvar Nova Senha'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

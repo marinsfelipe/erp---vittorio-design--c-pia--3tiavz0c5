@@ -131,4 +131,17 @@ export interface AuthUser {
   email: string
   name?: string
   avatar?: string
+  perfil?: 'admin' | 'usuario'
+  status?: 'pendente' | 'aprovado' | 'bloqueado'
+}
+
+export interface UsuarioPerfil {
+  id: string
+  user: string
+  nome: string
+  email?: string
+  perfil: 'admin' | 'usuario'
+  status: 'pendente' | 'aprovado' | 'bloqueado'
+  created?: string
+  updated?: string
 }
