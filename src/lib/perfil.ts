@@ -14,30 +14,40 @@ export async function garantirPerfil(): Promise<{
     return { perfil: 'usuario', status: 'bloqueado' }
   }
 
-  let perfil = (pb.authStore.record?.get('perfil') as string) || ''
-  let status = (pb.authStore.record?.get('status') as string) || ''
+  const authRec = pb.authStore.record as any
+  let perfil =
+    (authRec?.perfil as string) ||
+    (typeof authRec?.get === 'function' ? authRec.get('perfil') : '') ||
+    ''
+  let status =
+    (authRec?.status as string) ||
+    (typeof authRec?.get === 'function' ? authRec.get('status') : '') ||
+    ''
 
   if (!status || !perfil) {
     // Consulta/cria o perfil auxiliar
     let p = await usuariosService.getMeu()
     if (!p) {
-      const nome = (pb.authStore.record?.get('name') as string) || userId
-      const email = pb.authStore.record?.email || ''
+      const nome =
+        (authRec?.name as string) ||
+        (typeof authRec?.get === 'function' ? authRec.get('name') : '') ||
+        userId
+      const email = (authRec?.email as string) || ''
       try {
         p = await pb.collection('usuarios_perfil').create({
           user: userId,
           nome,
           email,
-          perfil: 'usuario',
-          status: 'pendente',
+          perfil: perfil || 'usuario',
+          status: status || 'pendente',
         })
       } catch {
         p = await usuariosService.getMeu()
       }
     }
     if (p) {
-      perfil = p.perfil || perfil || 'usuario'
-      status = p.status || status || 'pendente'
+      perfil = perfil || p.perfil || 'usuario'
+      status = status || p.status || 'pendente'
     }
   }
 
@@ -55,7 +65,11 @@ export async function garantirPerfil(): Promise<{
 export function setPerfilLocal(perfil: string, status: string) {
   const rec = pb.authStore.record
   if (!rec) return
-  rec.set('perfil', perfil)
-  rec.set('status', status)
-  pb.authStore.save(rec.token ?? pb.authStore.token, rec)
+  const token = pb.authStore.token
+  const updatedRec = {
+    ...rec,
+    perfil,
+    status,
+  }
+  pb.authStore.save(token, updatedRec as any)
 }

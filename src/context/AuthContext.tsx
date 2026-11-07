@@ -25,15 +25,43 @@ export const MSG_BLOQUEADO = 'Sua conta está bloqueada. Procure o administrador
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+// Helper seguro para extrair campos de RecordModel do PocketBase v0.26+
+function extrairCamposAuth(rec: any) {
+  if (!rec) return null
+  const id = rec.id || ''
+  const email = rec.email || ''
+  const name =
+    (rec.name as string) || (typeof rec.get === 'function' ? (rec.get('name') as string) : '') || ''
+  const rawPerfil =
+    (rec.perfil as string) ||
+    (typeof rec.get === 'function' ? (rec.get('perfil') as string) : '') ||
+    ''
+  const rawStatus =
+    (rec.status as string) ||
+    (typeof rec.get === 'function' ? (rec.get('status') as string) : '') ||
+    ''
+
+  const perfil: PerfilAcesso = rawPerfil === 'admin' ? 'admin' : 'usuario'
+  const status: StatusAcesso =
+    rawStatus === 'aprovado' || rawStatus === 'bloqueado' || rawStatus === 'pendente'
+      ? (rawStatus as StatusAcesso)
+      : 'pendente'
+
+  return { id, email, name, perfil, status }
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AuthUser | null>(() => {
     if (pb.authStore.isValid && pb.authStore.record) {
-      return {
-        id: pb.authStore.record.id,
-        email: pb.authStore.record.email || '',
-        name: (pb.authStore.record.get('name') as string) || '',
-        perfil: (pb.authStore.record.get('perfil') as 'admin' | 'usuario') || 'usuario',
-        status: (pb.authStore.record.get('status') as StatusAcesso) || 'pendente',
+      const parsed = extrairCamposAuth(pb.authStore.record)
+      if (parsed) {
+        return {
+          id: parsed.id,
+          email: parsed.email,
+          name: parsed.name,
+          perfil: parsed.perfil,
+          status: parsed.status,
+        }
       }
     }
     return null
@@ -41,19 +69,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [perfil, setPerfil] = useState<PerfilAcesso>(() => {
     if (pb.authStore.isValid && pb.authStore.record) {
-      return (
-        (pb.authStore.record.get('perfil') as string) === 'admin' ? 'admin' : 'usuario'
-      ) as PerfilAcesso
+      const parsed = extrairCamposAuth(pb.authStore.record)
+      return parsed?.perfil || 'usuario'
     }
     return 'usuario'
   })
 
   const [status, setStatus] = useState<StatusAcesso>(() => {
     if (pb.authStore.isValid && pb.authStore.record) {
-      const s = pb.authStore.record.get('status') as string
-      return (
-        s === 'aprovado' || s === 'bloqueado' || s === 'pendente' ? s : 'pendente'
-      ) as StatusAcesso
+      const parsed = extrairCamposAuth(pb.authStore.record)
+      return parsed?.status || 'pendente'
     }
     return 'pendente'
   })
@@ -66,22 +91,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = pb.authStore.onChange((_token, model) => {
       if (model && pb.authStore.isValid) {
-        const p = model.get?.('perfil') === 'admin' ? 'admin' : 'usuario'
-        const s = (model.get?.('status') as StatusAcesso) || 'pendente'
-        setUser({
-          id: model.id,
-          email: model.email || '',
-          name: model.get?.('name') || '',
-          perfil: p,
-          status: s,
-        })
-        setPerfil(p)
-        setStatus(s === 'aprovado' || s === 'bloqueado' || s === 'pendente' ? s : 'pendente')
-      } else {
-        setUser(null)
-        setPerfil('usuario')
-        setStatus('pendente')
+        const parsed = extrairCamposAuth(model)
+        if (parsed) {
+          setUser({
+            id: parsed.id,
+            email: parsed.email,
+            name: parsed.name,
+            perfil: parsed.perfil,
+            status: parsed.status,
+          })
+          setPerfil(parsed.perfil)
+          setStatus(parsed.status)
+          return
+        }
       }
+      setUser(null)
+      setPerfil('usuario')
+      setStatus('pendente')
     })
 
     return () => {
@@ -100,10 +126,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let p: PerfilAcesso = 'usuario'
 
       if (authData?.record) {
-        let recPerfil = (authData.record.get('perfil') as string) || ''
-        let recStatus = (authData.record.get('status') as string) || ''
+        const parsed = extrairCamposAuth(authData.record)
+        let recPerfil = parsed?.perfil || ''
+        let recStatus = parsed?.status || ''
 
-        if (!recStatus || !recPerfil) {
+        // Se por algum motivo o record no Auth ainda não tiver perfil/status definidos
+        if (!authData.record.status || !authData.record.perfil) {
           const g = await garantirPerfil()
           recPerfil = g.perfil
           recStatus = g.status
@@ -121,7 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser({
           id: authData.record.id,
           email: authData.record.email || '',
-          name: authData.record.get('name') || '',
+          name: parsed?.name || '',
           perfil: p,
           status: s,
         })
