@@ -81,8 +81,40 @@ export interface Proposta {
   status: PropostaStatus
   valor_total: number
   observacoes: string
+  criador?: string
+  expand?: { criador?: { id: string; name?: string; email?: string } }
   created?: string
   updated?: string
+}
+
+export type PerfilUsuario = 'admin' | 'usuario' | 'vendedor'
+
+export interface Cliente {
+  id: string
+  razao_social: string
+  cnpj?: string
+  endereco?: string
+  cidade?: string
+  uf?: string
+  contato?: string
+  email?: string
+  telefone?: string
+  criador: string
+  expand?: { criador?: { id: string; name?: string; email?: string } }
+  created?: string
+  updated?: string
+}
+
+export interface ClienteInput {
+  razao_social: string
+  cnpj?: string
+  endereco?: string
+  cidade?: string
+  uf?: string
+  contato?: string
+  email?: string
+  telefone?: string
+  criador: string
 }
 
 export interface PropostaItem {
@@ -131,7 +163,7 @@ export interface AuthUser {
   email: string
   name?: string
   avatar?: string
-  perfil?: 'admin' | 'usuario'
+  perfil?: PerfilUsuario
   status?: 'pendente' | 'aprovado' | 'bloqueado'
 }
 
@@ -140,7 +172,7 @@ export interface UsuarioPerfil {
   user: string
   nome: string
   email?: string
-  perfil: 'admin' | 'usuario'
+  perfil: PerfilUsuario
   status: 'pendente' | 'aprovado' | 'bloqueado'
   created?: string
   updated?: string
