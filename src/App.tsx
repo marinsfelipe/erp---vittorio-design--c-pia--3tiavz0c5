@@ -20,6 +20,8 @@ import UsuariosPage from '@/pages/Usuarios'
 import ClientesPage from '@/pages/Clientes'
 import CatalogoPage from '@/pages/Catalogo'
 import PipelinePage from '@/pages/Pipeline'
+import ModelosContratoPage from '@/pages/ModelosContrato'
+import ContratosPage from '@/pages/Contratos'
 import NotFound from '@/pages/NotFound'
 
 export default function App() {
@@ -38,6 +40,7 @@ export default function App() {
               <Route path="/pipeline" element={<PipelinePage />} />
               <Route path="/propostas" element={<PropostasPage />} />
               <Route path="/propostas/:id" element={<PropostaDetalhePage />} />
+              <Route path="/contratos" element={<ContratosPage />} />
 
               {/* Rotas de engenharia e produção: bloqueadas para vendedor */}
               <Route element={<ProtectedRoute bloquearVendedor />}>
@@ -55,6 +58,7 @@ export default function App() {
               <Route element={<ProtectedRoute apenasAdmin />}>
                 <Route path="/parametros" element={<ParametrosPage />} />
                 <Route path="/usuarios" element={<UsuariosPage />} />
+                <Route path="/modelos-contrato" element={<ModelosContratoPage />} />
               </Route>
             </Route>
           </Route>

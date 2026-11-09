@@ -28,9 +28,11 @@ import {
   Plus,
   AlertCircle,
   Kanban,
+  FileSignature,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { MotivoPerdaDialog } from '@/components/pipeline/MotivoPerdaDialog'
+import { GerarContratoDialog } from '@/components/contratos/GerarContratoDialog'
 
 const fluxo: PropostaStatus[] = ['rascunho', 'enviada', 'em_negociacao', 'vendida']
 const statusLabels: Record<PropostaStatus, string> = {
@@ -50,9 +52,10 @@ export default function PropostaDetalhePage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Diálogo para marcar como perdida
+  // Diálogo para marcar como perdida e gerar contrato
   const [motivoModalOpen, setMotivoModalOpen] = useState(false)
   const [motivoTexto, setMotivoTexto] = useState('')
+  const [gerarContratoOpen, setGerarContratoOpen] = useState(false)
 
   const load = async () => {
     if (!id) return
@@ -215,6 +218,15 @@ export default function PropostaDetalhePage() {
             >
               <XCircle className="h-4 w-4" />
               Marcar como Perdida
+            </Button>
+          )}
+          {proposta.status === 'vendida' && (
+            <Button
+              onClick={() => setGerarContratoOpen(true)}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+            >
+              <FileSignature className="h-4 w-4" />
+              Gerar Contrato
             </Button>
           )}
           {proposta.status === 'vendida' && !isVendedor && (
@@ -392,6 +404,13 @@ export default function PropostaDetalhePage() {
         isSubmitting={isSaving}
         propostaNumero={proposta.numero}
         cliente={proposta.cliente}
+      />
+
+      <GerarContratoDialog
+        open={gerarContratoOpen}
+        onOpenChange={setGerarContratoOpen}
+        proposta={proposta}
+        itens={itens}
       />
     </div>
   )

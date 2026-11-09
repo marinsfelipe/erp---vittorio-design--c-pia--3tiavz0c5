@@ -23,8 +23,22 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Users, Plus, Pencil, Trash2, Search, Building2 } from 'lucide-react'
+import {
+  Users,
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  Building2,
+  ScrollText,
+  Printer,
+  FileText,
+} from 'lucide-react'
 import { toast } from 'sonner'
+import { contratosService } from '@/services/contratos'
+import type { Contrato } from '@/types/erp'
+import { formatBRL, formatDateTime } from '@/utils/formatters'
+import { imprimirContrato } from '@/utils/contratoPdf'
 
 const vazio: ClienteInput = {
   razao_social: '',
@@ -101,6 +115,11 @@ export default function ClientesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ClienteInput>(vazio)
 
+  // Diálogo para visualização de histórico de contratos do cliente
+  const [clienteHistorico, setClienteHistorico] = useState<Cliente | null>(null)
+  const [contratosCliente, setContratosCliente] = useState<Contrato[]>([])
+  const [carregandoContratos, setCarregandoContratos] = useState(false)
+
   const load = async () => {
     setIsLoading(true)
     try {
@@ -126,19 +145,37 @@ export default function ClientesPage() {
   const handleOpenEdit = (c: Cliente) => {
     setEditingId(c.id)
     setForm({
-      razao_social: c.razao_social ?? '',
-      cnpj: c.cnpj ?? '',
-      endereco: c.endereco ?? '',
-      cidade: c.cidade ?? '',
-      uf: c.uf ?? '',
-      contato: c.contato ?? '',
-      email: c.email ?? '',
-      telefone: c.telefone ?? '',
-      criador: c.criador,
+      razao_social: c.razao_social,
+      cnpj: c.cnpj || '',
+      endereco: c.endereco || '',
+      cidade: c.cidade || '',
+      uf: c.uf || '',
+      contato: c.contato || '',
+      email: c.email || '',
+      telefone: c.telefone || '',
+      criador: c.criador || '',
     })
     setIsDialogOpen(true)
   }
 
+  const handleVerContratos = async (c: Cliente) => {
+    setClienteHistorico(c)
+    setCarregandoContratos(true)
+    try {
+      // Busca tanto por ID do cliente quanto por Razão Social
+      const porId = await contratosService.getByClienteId(c.id)
+      const porNome = await contratosService.getByClienteNome(c.razao_social)
+      const mapa = new Map<string, Contrato>()
+      porId.forEach((it) => mapa.set(it.id, it))
+      porNome.forEach((it) => mapa.set(it.id, it))
+      setContratosCliente(Array.from(mapa.values()))
+    } catch (err) {
+      console.error(err)
+      toast.error('Erro ao carregar contratos do cliente.')
+    } finally {
+      setCarregandoContratos(false)
+    }
+  }
   const set = (k: keyof ClienteInput) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [k]: e.target.value }))
 
@@ -283,6 +320,15 @@ export default function ClientesPage() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-7 w-7 text-primary hover:text-primary hover:bg-primary/10"
+                        title="Ver Contratos do Cliente"
+                        onClick={() => handleVerContratos(c)}
+                      >
+                        <ScrollText className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-7 w-7"
                         title="Editar"
                         onClick={() => handleOpenEdit(c)}
@@ -421,6 +467,98 @@ export default function ClientesPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Histórico de Contratos do Cliente */}
+      <Dialog
+        open={Boolean(clienteHistorico)}
+        onOpenChange={(open) => !open && setClienteHistorico(null)}
+      >
+        <DialogContent className="sm:max-w-[720px] max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ScrollText className="h-5 w-5 text-primary" />
+              <span>Contratos de {clienteHistorico?.razao_social}</span>
+            </DialogTitle>
+            <DialogDescription>
+              Histórico de contratos comerciais gerados para este cliente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-2">
+            {carregandoContratos ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Carregando contratos...
+              </p>
+            ) : contratosCliente.length === 0 ? (
+              <div className="text-center py-8 space-y-2">
+                <FileText className="h-8 w-8 text-muted-foreground mx-auto stroke-1" />
+                <p className="text-sm text-foreground font-medium">
+                  Nenhum contrato gerado para este cliente até o momento.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Quando uma proposta for aprovada/vendida, clique em "Gerar Contrato" para
+                  emiti-lo.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {contratosCliente.map((ct) => (
+                  <div
+                    key={ct.id}
+                    className="p-3 rounded-lg border border-border bg-card flex items-center justify-between gap-3 hover:border-primary/40 transition-colors"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-primary">
+                          {ct.numero}
+                        </span>
+                        {ct.proposta_numero && (
+                          <Badge variant="outline" className="text-[10px]">
+                            Prop. {ct.proposta_numero}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Modelo: {ct.modelo_titulo || 'Padrão'}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Data: {ct.created ? formatDateTime(ct.created) : '—'} • Valor:{' '}
+                        <strong className="text-foreground font-mono">
+                          {ct.valor_total ? formatBRL(ct.valor_total) : '—'}
+                        </strong>
+                      </p>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        imprimirContrato({
+                          numero: ct.numero,
+                          cliente: ct.cliente_nome,
+                          cnpj: ct.cliente_cnpj,
+                          conteudo: ct.conteudo,
+                          dataGeracao: ct.created ? formatDateTime(ct.created) : undefined,
+                        })
+                      }
+                      className="gap-1.5 text-xs h-8"
+                    >
+                      <Printer className="h-3.5 w-3.5" />
+                      <span>PDF</span>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" onClick={() => setClienteHistorico(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -184,3 +184,71 @@ export interface UsuarioPerfil {
   created?: string
   updated?: string
 }
+
+export interface ModeloContrato {
+  id: string
+  titulo: string
+  descricao?: string
+  conteudo: string
+  ativo: boolean
+  padrao: boolean
+  criador?: string
+  created?: string
+  updated?: string
+}
+
+export interface ModeloContratoInput {
+  titulo: string
+  descricao?: string
+  conteudo: string
+  ativo: boolean
+  padrao: boolean
+  criador?: string
+}
+
+export interface Contrato {
+  id: string
+  numero: string
+  ano: number
+  sequencial: number
+  proposta?: string
+  proposta_numero?: string
+  cliente?: string
+  cliente_nome: string
+  cliente_cnpj?: string
+  modelo?: string
+  modelo_titulo?: string
+  conteudo: string
+  valor_total?: number
+  prazo_entrega?: string
+  condicao_pagamento?: string
+  garantia?: string
+  criador: string
+  expand?: {
+    proposta?: Proposta
+    cliente?: Cliente
+    modelo?: ModeloContrato
+    criador?: { id: string; name?: string; email?: string }
+  }
+  created?: string
+  updated?: string
+}
+
+export interface ContratoInput {
+  numero: string
+  ano: number
+  sequencial: number
+  proposta?: string
+  proposta_numero?: string
+  cliente?: string
+  cliente_nome: string
+  cliente_cnpj?: string
+  modelo?: string
+  modelo_titulo?: string
+  conteudo: string
+  valor_total?: number
+  prazo_entrega?: string
+  condicao_pagamento?: string
+  garantia?: string
+  criador: string
+}

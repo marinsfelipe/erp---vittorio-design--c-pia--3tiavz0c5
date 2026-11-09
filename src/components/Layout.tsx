@@ -19,6 +19,8 @@ import {
   Package,
   Building2,
   Kanban,
+  FileSignature,
+  ScrollText,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -126,6 +128,7 @@ export default function Layout() {
           icon: FileSpreadsheet,
           adminOnly: false,
         },
+        { href: '/contratos', label: 'Contratos Gerados', icon: ScrollText, adminOnly: false },
         { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
         { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
       ]
@@ -138,6 +141,7 @@ export default function Layout() {
           icon: FileSpreadsheet,
           adminOnly: false,
         },
+        { href: '/contratos', label: 'Contratos Gerados', icon: ScrollText, adminOnly: false },
         { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
         { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
         { href: '/componentes', label: 'Componentes', icon: Database, adminOnly: false },
@@ -161,6 +165,12 @@ export default function Layout() {
           href: '/parametros',
           label: 'Parâmetros Financeiros',
           icon: Sliders,
+          adminOnly: true,
+        },
+        {
+          href: '/modelos-contrato',
+          label: 'Modelos de Contrato',
+          icon: FileSignature,
           adminOnly: true,
         },
       ]

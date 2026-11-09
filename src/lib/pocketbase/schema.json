@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-09T23:39:47.106Z",
+  "generatedAt": "2026-11-09T23:51:19.226Z",
   "collections": [
     {
       "name": "users",
@@ -829,6 +829,202 @@
         "CREATE INDEX idx_clientes_criador ON clientes (criador)",
         "CREATE INDEX idx_clientes_razao ON clientes (razao_social)"
       ]
+    },
+    {
+      "name": "modelos_contrato",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "update": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "delete": "@request.auth.id != '' && @request.auth.perfil = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "titulo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "descricao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "conteudo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "ativo",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "padrao",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "criador",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_modelos_contrato_ativo ON modelos_contrato (ativo)",
+        "CREATE INDEX idx_modelos_contrato_titulo ON modelos_contrato (titulo)"
+      ]
+    },
+    {
+      "name": "contratos",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && (@request.auth.perfil = 'admin' || criador = @request.auth.id)",
+        "view": "@request.auth.id != '' && (@request.auth.perfil = 'admin' || criador = @request.auth.id)",
+        "create": "@request.auth.id != '' && (@request.auth.perfil = 'admin' || criador = @request.auth.id)",
+        "update": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "delete": "@request.auth.id != '' && @request.auth.perfil = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "numero",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "ano",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "sequencial",
+          "type": "number",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "proposta",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "propostas"
+        },
+        {
+          "name": "proposta_numero",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes"
+        },
+        {
+          "name": "cliente_nome",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "cliente_cnpj",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "modelo",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "modelos_contrato"
+        },
+        {
+          "name": "modelo_titulo",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "conteudo",
+          "type": "text",
+          "required": true,
+          "system": false
+        },
+        {
+          "name": "valor_total",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "prazo_entrega",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "condicao_pagamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "garantia",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "criador",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": []
     }
   ]
 }
