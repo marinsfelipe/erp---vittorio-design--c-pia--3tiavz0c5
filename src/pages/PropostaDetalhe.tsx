@@ -26,14 +26,19 @@ import {
   Clock,
   XCircle,
   Plus,
+  AlertCircle,
+  Kanban,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { MotivoPerdaDialog } from '@/components/pipeline/MotivoPerdaDialog'
 
-const fluxo: PropostaStatus[] = ['rascunho', 'enviada', 'vendida']
+const fluxo: PropostaStatus[] = ['rascunho', 'enviada', 'em_negociacao', 'vendida']
 const statusLabels: Record<PropostaStatus, string> = {
   rascunho: 'Rascunho',
   enviada: 'Enviada',
+  em_negociacao: 'Em negociação',
   vendida: 'Vendida',
+  perdida: 'Perdida',
 }
 
 export default function PropostaDetalhePage() {
@@ -44,6 +49,10 @@ export default function PropostaDetalhePage() {
   const [itens, setItens] = useState<PropostaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Diálogo para marcar como perdida
+  const [motivoModalOpen, setMotivoModalOpen] = useState(false)
+  const [motivoTexto, setMotivoTexto] = useState('')
 
   const load = async () => {
     if (!id) return
@@ -69,11 +78,13 @@ export default function PropostaDetalhePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  const handleAvancarStatus = async () => {
+  const handleAvancarStatus = async (statusDestino?: PropostaStatus) => {
     if (!proposta) return
     const idx = fluxo.indexOf(proposta.status)
-    if (idx < 0 || idx >= fluxo.length - 1) return
-    const novoStatus = fluxo[idx + 1]
+    const novoStatus =
+      statusDestino || (idx >= 0 && idx < fluxo.length - 1 ? fluxo[idx + 1] : undefined)
+    if (!novoStatus) return
+
     setIsSaving(true)
     try {
       await propostasService.updateStatus(proposta.id, novoStatus)
@@ -84,6 +95,27 @@ export default function PropostaDetalhePage() {
       } else {
         toast.success(`Status atualizado para ${statusLabels[novoStatus]}.`)
       }
+      load()
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Erro ao atualizar status da proposta.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleConfirmarPerda = async () => {
+    if (!proposta) return
+    if (!motivoTexto.trim()) {
+      toast.error('Informe o motivo da perda.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      await propostasService.updateStatus(proposta.id, 'perdida', motivoTexto.trim())
+      toast.info('Proposta marcada como Perdida.')
+      setMotivoModalOpen(false)
       load()
     } catch (err: any) {
       console.error(err)
@@ -107,10 +139,14 @@ export default function PropostaDetalhePage() {
   const statusIcons: Record<PropostaStatus, React.ReactNode> = {
     rascunho: <Clock className="h-3.5 w-3.5" />,
     enviada: <Send className="h-3.5 w-3.5" />,
+    em_negociacao: <Clock className="h-3.5 w-3.5" />,
     vendida: <Award className="h-3.5 w-3.5" />,
+    perdida: <XCircle className="h-3.5 w-3.5" />,
   }
 
-  const proximo = fluxo[fluxo.indexOf(proposta.status) + 1]
+  const proximo = fluxo.includes(proposta.status)
+    ? fluxo[fluxo.indexOf(proposta.status) + 1]
+    : undefined
 
   return (
     <div className="space-y-6">
@@ -138,11 +174,23 @@ export default function PropostaDetalhePage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link to="/pipeline">
+            <Button variant="outline" size="sm" className="gap-2 text-xs">
+              <Kanban className="h-3.5 w-3.5 text-primary" />
+              Ver no Pipeline
+            </Button>
+          </Link>
           {proximo && (
-            <Button onClick={handleAvancarStatus} disabled={isSaving} className="gap-2">
+            <Button
+              onClick={() => handleAvancarStatus(proximo)}
+              disabled={isSaving}
+              className="gap-2"
+            >
               {proximo === 'enviada' ? (
                 <Send className="h-4 w-4" />
+              ) : proximo === 'em_negociacao' ? (
+                <Clock className="h-4 w-4" />
               ) : (
                 <CheckCircle2 className="h-4 w-4" />
               )}
@@ -150,7 +198,23 @@ export default function PropostaDetalhePage() {
                 ? 'Salvando...'
                 : proximo === 'enviada'
                   ? 'Marcar como Enviada'
-                  : 'Marcar como Vendida'}
+                  : proximo === 'em_negociacao'
+                    ? 'Em Negociação'
+                    : 'Marcar como Vendida'}
+            </Button>
+          )}
+          {proposta.status !== 'perdida' && proposta.status !== 'vendida' && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setMotivoTexto(proposta.motivo_perda || '')
+                setMotivoModalOpen(true)
+              }}
+              disabled={isSaving}
+              className="gap-2 text-rose-600 border-rose-200 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+            >
+              <XCircle className="h-4 w-4" />
+              Marcar como Perdida
             </Button>
           )}
           {proposta.status === 'vendida' && !isVendedor && (
@@ -164,11 +228,27 @@ export default function PropostaDetalhePage() {
         </div>
       </div>
 
+      {/* Motivo da Perda (se perdida) */}
+      {proposta.status === 'perdida' && (
+        <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-sm">
+            <h4 className="font-semibold text-rose-900 dark:text-rose-200">
+              Proposta Finalizada como Perdida
+            </h4>
+            <p className="text-rose-800 dark:text-rose-300">
+              <span className="font-medium">Motivo registrado:</span>{' '}
+              {proposta.motivo_perda || 'Nenhum motivo informado.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Fluxo de status */}
       <div className="flex items-center gap-2 flex-wrap">
         {fluxo.map((s, idx) => {
           const current = fluxo.indexOf(proposta.status)
-          const done = idx <= current
+          const done = idx <= current && proposta.status !== 'perdida'
           return (
             <div key={s} className="flex items-center gap-2">
               <Badge
@@ -185,9 +265,12 @@ export default function PropostaDetalhePage() {
             </div>
           )
         })}
-        {proposta.status !== 'vendida' && (
+        {proposta.status === 'perdida' && (
+          <Badge className="bg-rose-600 text-white font-semibold">Status Atual: Perdida</Badge>
+        )}
+        {proposta.status !== 'vendida' && proposta.status !== 'perdida' && (
           <span className="text-xs text-muted-foreground ml-2">
-            Avance o status no botão acima.
+            Avance o status nos botões acima ou arraste no Pipeline.
           </span>
         )}
       </div>
@@ -298,6 +381,18 @@ export default function PropostaDetalhePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Modal para solicitar motivo da perda */}
+      <MotivoPerdaDialog
+        open={motivoModalOpen}
+        onCancel={() => setMotivoModalOpen(false)}
+        motivo={motivoTexto}
+        onChangeMotivo={setMotivoTexto}
+        onConfirm={handleConfirmarPerda}
+        isSubmitting={isSaving}
+        propostaNumero={proposta.numero}
+        cliente={proposta.cliente}
+      />
     </div>
   )
 }

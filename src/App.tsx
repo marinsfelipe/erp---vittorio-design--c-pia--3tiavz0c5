@@ -19,6 +19,7 @@ import LoginPage from '@/pages/Login'
 import UsuariosPage from '@/pages/Usuarios'
 import ClientesPage from '@/pages/Clientes'
 import CatalogoPage from '@/pages/Catalogo'
+import PipelinePage from '@/pages/Pipeline'
 import NotFound from '@/pages/NotFound'
 
 export default function App() {
@@ -34,6 +35,7 @@ export default function App() {
               {/* Rotas comerciais acessíveis para vendedor, usuário e admin */}
               <Route path="/catalogo" element={<CatalogoPage />} />
               <Route path="/clientes" element={<ClientesPage />} />
+              <Route path="/pipeline" element={<PipelinePage />} />
               <Route path="/propostas" element={<PropostasPage />} />
               <Route path="/propostas/:id" element={<PropostaDetalhePage />} />
 

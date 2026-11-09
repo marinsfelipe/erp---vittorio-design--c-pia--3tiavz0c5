@@ -28,19 +28,23 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { FileText, Plus, Trash2, Eye, FileSignature, Search } from 'lucide-react'
+import { FileText, Plus, Trash2, Eye, FileSignature, Search, Kanban } from 'lucide-react'
 import { toast } from 'sonner'
 
 const statusLabels: Record<string, string> = {
   rascunho: 'Rascunho',
   enviada: 'Enviada',
+  em_negociacao: 'Em negociação',
   vendida: 'Vendida',
+  perdida: 'Perdida',
 }
 
 const statusColors: Record<string, string> = {
   rascunho: 'bg-muted text-muted-foreground',
   enviada: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
+  em_negociacao: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   vendida: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
+  perdida: 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300',
 }
 
 export default function PropostasPage() {
@@ -219,12 +223,20 @@ export default function PropostasPage() {
             precificação
           </p>
         </div>
-        {!isVendedor && (
-          <Button onClick={handleOpenCreate} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Nova Proposta
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <Link to="/pipeline">
+            <Button variant="outline" className="gap-2">
+              <Kanban className="h-4 w-4 text-primary" />
+              Ver Pipeline (Kanban)
+            </Button>
+          </Link>
+          {!isVendedor && (
+            <Button onClick={handleOpenCreate} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Nova Proposta
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Busca */}
@@ -287,6 +299,14 @@ export default function PropostasPage() {
                     <Badge className={`${statusColors[p.status] || ''} text-xs`}>
                       {statusLabels[p.status] || p.status}
                     </Badge>
+                    {p.status === 'perdida' && p.motivo_perda && (
+                      <p
+                        className="text-[10px] text-rose-700 dark:text-rose-400 mt-0.5 line-clamp-1 italic max-w-[140px] mx-auto"
+                        title={`Motivo: ${p.motivo_perda}`}
+                      >
+                        {p.motivo_perda}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell className="text-right font-mono font-semibold text-emerald-700 dark:text-emerald-400">
                     {formatBRL(p.valor_total)}

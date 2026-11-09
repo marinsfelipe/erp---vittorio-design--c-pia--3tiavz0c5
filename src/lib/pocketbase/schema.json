@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-09T23:29:45.100Z",
+  "generatedAt": "2026-11-09T23:39:47.106Z",
   "collections": [
     {
       "name": "users",
@@ -418,7 +418,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["rascunho", "enviada", "vendida"]
+          "selectValues": ["rascunho", "enviada", "vendida", "em_negociacao", "perdida"]
         },
         {
           "name": "valor_total",
@@ -452,6 +452,12 @@
           "required": false,
           "system": false,
           "collectionRef": "users"
+        },
+        {
+          "name": "motivo_perda",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

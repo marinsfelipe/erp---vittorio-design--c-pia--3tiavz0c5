@@ -18,6 +18,7 @@ import {
   KeyRound,
   Package,
   Building2,
+  Kanban,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -118,25 +119,27 @@ export default function Layout() {
   // - Administrador: Todos os anteriores + Usuários e Parâmetros Financeiros
   const navItems = isVendedor
     ? [
-        { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
-        { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
+        { href: '/pipeline', label: 'Pipeline Comercial', icon: Kanban, adminOnly: false },
         {
           href: '/propostas',
           label: 'Propostas Comerciais',
           icon: FileSpreadsheet,
           adminOnly: false,
         },
+        { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
+        { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
       ]
     : [
         { href: '/', label: 'Painel Geral', icon: Layers, adminOnly: false },
-        { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
-        { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
+        { href: '/pipeline', label: 'Pipeline Comercial', icon: Kanban, adminOnly: false },
         {
           href: '/propostas',
           label: 'Propostas Comerciais',
           icon: FileSpreadsheet,
           adminOnly: false,
         },
+        { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
+        { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
         { href: '/componentes', label: 'Componentes', icon: Database, adminOnly: false },
         { href: '/importar', label: 'Importar Componentes', icon: Upload, adminOnly: false },
         { href: '/boms', label: 'Engenharia de BOMs', icon: Snowflake, adminOnly: false },
@@ -164,7 +167,7 @@ export default function Layout() {
 
   const filteredNavItems = navItems.filter((item) => !item.adminOnly || isAdmin)
 
-  const homeLink = isVendedor ? '/propostas' : '/'
+  const homeLink = isVendedor ? '/pipeline' : '/'
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">

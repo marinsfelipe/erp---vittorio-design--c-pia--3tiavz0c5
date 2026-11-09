@@ -72,7 +72,7 @@ export interface BomItem {
   updated?: string
 }
 
-export type PropostaStatus = 'rascunho' | 'enviada' | 'vendida'
+export type PropostaStatus = 'rascunho' | 'enviada' | 'em_negociacao' | 'vendida' | 'perdida'
 
 export interface Proposta {
   id: string
@@ -82,7 +82,14 @@ export interface Proposta {
   valor_total: number
   observacoes: string
   criador?: string
-  expand?: { criador?: { id: string; name?: string; email?: string } }
+  motivo_perda?: string
+  expand?: {
+    criador?: {
+      id: string
+      name?: string
+      email?: string
+    }
+  }
   created?: string
   updated?: string
 }

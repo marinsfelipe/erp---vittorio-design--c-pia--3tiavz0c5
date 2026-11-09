@@ -65,11 +65,14 @@ export const propostasService = {
   async getAll(): Promise<Proposta[]> {
     return await pb.collection('propostas').getFullList<Proposta>({
       sort: '-created',
+      expand: 'criador',
     })
   },
 
   async getById(id: string): Promise<Proposta> {
-    return await pb.collection('propostas').getOne<Proposta>(id)
+    return await pb.collection('propostas').getOne<Proposta>(id, {
+      expand: 'criador',
+    })
   },
 
   async getItems(propostaId: string): Promise<PropostaItem[]> {
@@ -111,8 +114,17 @@ export const propostasService = {
     return proposta
   },
 
-  async updateStatus(id: string, status: PropostaStatus): Promise<Proposta> {
-    return await pb.collection('propostas').update<Proposta>(id, { status })
+  async updateStatus(id: string, status: PropostaStatus, motivoPerda?: string): Promise<Proposta> {
+    const payload: Record<string, any> = { status }
+    if (status === 'perdida' && motivoPerda !== undefined) {
+      payload.motivo_perda = motivoPerda
+    } else if (status !== 'perdida') {
+      // Opcional: limpar motivo se reativar ou manter histórico
+      if (motivoPerda !== undefined) {
+        payload.motivo_perda = motivoPerda
+      }
+    }
+    return await pb.collection('propostas').update<Proposta>(id, payload)
   },
 
   async delete(id: string): Promise<boolean> {
