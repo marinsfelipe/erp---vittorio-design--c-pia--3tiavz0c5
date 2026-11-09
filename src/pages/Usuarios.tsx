@@ -104,6 +104,26 @@ export default function UsuariosPage() {
     }
   }
 
+  const handleAlterarPerfil = async (
+    u: UsuarioPerfil,
+    novoPerfil: 'admin' | 'usuario' | 'vendedor',
+  ) => {
+    try {
+      await usuariosService.setPerfil(u.id, u.user, novoPerfil)
+      const label =
+        novoPerfil === 'admin'
+          ? 'Administrador'
+          : novoPerfil === 'vendedor'
+            ? 'Vendedor'
+            : 'Usuário'
+      toast.success(`Perfil de "${u.nome}" alterado para ${label}.`)
+      await loadData()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao alterar perfil do usuário.')
+    }
+  }
+
   const handleConfirmExcluir = async () => {
     if (!excluirTarget) return
     try {
@@ -260,9 +280,44 @@ export default function UsuariosPage() {
                     </TableCell>
                     <TableCell className="font-mono text-xs">{u.email || '—'}</TableCell>
                     <TableCell>
-                      <Badge variant={u.perfil === 'admin' ? 'default' : 'secondary'}>
-                        {u.perfil === 'admin' ? 'Administrador' : 'Usuário'}
-                      </Badge>
+                      {isCurrentUser ? (
+                        <Badge
+                          variant={
+                            u.perfil === 'admin'
+                              ? 'default'
+                              : u.perfil === 'vendedor'
+                                ? 'outline'
+                                : 'secondary'
+                          }
+                          className={
+                            u.perfil === 'vendedor'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200'
+                              : undefined
+                          }
+                        >
+                          {u.perfil === 'admin'
+                            ? 'Administrador'
+                            : u.perfil === 'vendedor'
+                              ? 'Vendedor'
+                              : 'Usuário'}
+                        </Badge>
+                      ) : (
+                        <select
+                          value={u.perfil || 'usuario'}
+                          onChange={(e) =>
+                            handleAlterarPerfil(
+                              u,
+                              e.target.value as 'admin' | 'usuario' | 'vendedor',
+                            )
+                          }
+                          className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-medium"
+                          title="Alterar perfil do usuário"
+                        >
+                          <option value="usuario">Usuário comum</option>
+                          <option value="vendedor">Vendedor</option>
+                          <option value="admin">Administrador</option>
+                        </select>
+                      )}
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={u.status} />

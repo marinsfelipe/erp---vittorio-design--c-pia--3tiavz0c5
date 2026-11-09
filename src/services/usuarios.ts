@@ -52,6 +52,21 @@ export const usuariosService = {
     }
   },
 
+  async setPerfil(
+    perfilId: string,
+    userId: string,
+    perfil: 'admin' | 'usuario' | 'vendedor',
+  ): Promise<void> {
+    await pb.collection('usuarios_perfil').update(perfilId, { perfil })
+    if (userId) {
+      try {
+        await pb.collection('users').update(userId, { perfil })
+      } catch (err) {
+        console.warn('Erro ao sincronizar perfil no users:', err)
+      }
+    }
+  },
+
   async redefinirSenhaAdmin(userId: string, novaSenhaTemporaria: string): Promise<void> {
     if (!userId) throw new Error('ID do usuário não fornecido.')
     if (novaSenhaTemporaria.length < 8) {

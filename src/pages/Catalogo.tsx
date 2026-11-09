@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { propostasService } from '@/services/propostas'
 import type { Proposta, PropostaItem } from '@/types/erp'
 import { formatBRL } from '@/utils/formatters'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {

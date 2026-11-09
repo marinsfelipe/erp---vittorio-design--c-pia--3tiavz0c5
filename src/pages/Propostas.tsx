@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useAuth } from '@/context/AuthContext'
 import { bomsService } from '@/services/boms'
 import { propostasService, montarItensProposta, type PropostaItemInput } from '@/services/propostas'
 import { parametrosService } from '@/services/parametros'
@@ -43,6 +44,7 @@ const statusColors: Record<string, string> = {
 }
 
 export default function PropostasPage() {
+  const { isVendedor, user } = useAuth()
   const [propostas, setPropostas] = useState<Proposta[]>([])
   const [boms, setBoms] = useState<Bom[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -60,14 +62,35 @@ export default function PropostasPage() {
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const [allPropostas, allBoms, paramsMap] = await Promise.all([
+      const [allPropostas, bomsRes, paramsRes] = await Promise.allSettled([
         propostasService.getAll(),
         bomsService.getAll(),
         parametrosService.getMap(),
       ])
-      setPropostas(allPropostas)
-      setBoms(allBoms)
-      setPMap(paramsMap)
+
+      if (allPropostas.status === 'fulfilled') {
+        const raw = allPropostas.value
+        // Se for vendedor, garante filtro local pelo seu id além do RLS
+        const filtradas =
+          isVendedor && user?.id ? raw.filter((p) => !p.criador || p.criador === user.id) : raw
+        setPropostas(filtradas)
+      } else {
+        console.error('Erro ao buscar propostas:', allPropostas.reason)
+        toast.error('Erro ao carregar propostas.')
+      }
+
+      if (bomsRes.status === 'fulfilled') {
+        setBoms(bomsRes.value)
+      } else {
+        // Vendedor pode não ter acesso à listagem completa de BOMs via RLS
+        setBoms([])
+      }
+
+      if (paramsRes.status === 'fulfilled') {
+        setPMap(paramsRes.value)
+      } else {
+        setPMap({})
+      }
     } catch (err: any) {
       console.error(err)
       toast.error('Erro ao carregar propostas.')
@@ -78,7 +101,7 @@ export default function PropostasPage() {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [isVendedor, user?.id])
 
   const handleOpenCreate = () => {
     setCliente('')
@@ -196,10 +219,12 @@ export default function PropostasPage() {
             precificação
           </p>
         </div>
-        <Button onClick={handleOpenCreate} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Nova Proposta
-        </Button>
+        {!isVendedor && (
+          <Button onClick={handleOpenCreate} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Nova Proposta
+          </Button>
+        )}
       </div>
 
       {/* Busca */}
@@ -225,9 +250,15 @@ export default function PropostasPage() {
               Crie a primeira proposta selecionando os SKUs desejados e as quantidades para o
               cliente.
             </p>
-            <Button onClick={handleOpenCreate} className="mt-2">
-              Criar Primeira Proposta
-            </Button>
+            {!isVendedor ? (
+              <Button onClick={handleOpenCreate} className="mt-2">
+                Criar Primeira Proposta
+              </Button>
+            ) : (
+              <Link to="/catalogo">
+                <Button className="mt-2">Ir ao Catálogo para Gerar Proposta</Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
       ) : (

@@ -83,14 +83,20 @@ export const propostasService = {
     cliente: string,
     observacoes: string,
     itens: PropostaItemInput[],
+    criadorId?: string,
   ): Promise<Proposta> {
     const valorTotal = itens.reduce((acc, i) => acc + i.preco_unitario * i.quantidade, 0)
-    const proposta = await pb.collection('propostas').create<Proposta>({
+    const criador = criadorId || pb.authStore.record?.id || ''
+    const payload: Record<string, any> = {
       cliente,
       status: 'rascunho',
       valor_total: valorTotal,
       observacoes,
-    })
+    }
+    if (criador) {
+      payload.criador = criador
+    }
+    const proposta = await pb.collection('propostas').create<Proposta>(payload)
     for (const it of itens) {
       await pb.collection('proposta_items').create<PropostaItem>({
         proposta_id: proposta.id,

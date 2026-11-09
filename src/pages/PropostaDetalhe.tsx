@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '@/context/AuthContext'
 import { propostasService } from '@/services/propostas'
 import { ordensCompraService } from '@/services/ordensCompra'
 import type { Proposta, PropostaItem, PropostaStatus } from '@/types/erp'
@@ -38,6 +39,7 @@ const statusLabels: Record<PropostaStatus, string> = {
 export default function PropostaDetalhePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { isVendedor } = useAuth()
   const [proposta, setProposta] = useState<Proposta | null>(null)
   const [itens, setItens] = useState<PropostaItem[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -151,7 +153,7 @@ export default function PropostaDetalhePage() {
                   : 'Marcar como Vendida'}
             </Button>
           )}
-          {proposta.status === 'vendida' && (
+          {proposta.status === 'vendida' && !isVendedor && (
             <Link to="/compras">
               <Button variant="outline" className="gap-2">
                 <ShoppingCart className="h-4 w-4" />
@@ -191,7 +193,11 @@ export default function PropostaDetalhePage() {
       </div>
 
       {/* Métricas */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div
+        className={`grid grid-cols-1 ${
+          isVendedor ? 'md:grid-cols-1 max-w-sm' : 'md:grid-cols-3'
+        } gap-4`}
+      >
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Valor Total da Proposta</CardDescription>
@@ -203,26 +209,32 @@ export default function PropostaDetalhePage() {
             Preço de venda × quantidade de cada SKU
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Custo dos Materiais (BOMs)</CardDescription>
-            <CardTitle className="text-2xl font-bold font-mono">{formatBRL(custoTotal)}</CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Custo consolidado dos componentes dos SKUs
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Margem Bruta Estimada</CardDescription>
-            <CardTitle className="text-2xl font-bold font-mono text-primary">
-              {formatBRL(margemValor)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-xs text-muted-foreground">
-            Valor total menos custo de materiais
-          </CardContent>
-        </Card>
+        {!isVendedor && (
+          <>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Custo dos Materiais (BOMs)</CardDescription>
+                <CardTitle className="text-2xl font-bold font-mono">
+                  {formatBRL(custoTotal)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">
+                Custo consolidado dos componentes dos SKUs
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription>Margem Bruta Estimada</CardDescription>
+                <CardTitle className="text-2xl font-bold font-mono text-primary">
+                  {formatBRL(margemValor)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs text-muted-foreground">
+                Valor total menos custo de materiais
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
 
       {/* Itens */}
@@ -251,9 +263,13 @@ export default function PropostaDetalhePage() {
                 {itens.map((it) => (
                   <TableRow key={it.id} className="hover:bg-muted/30">
                     <TableCell className="font-mono text-xs font-bold text-primary">
-                      <Link to={`/boms/${it.bom_id}`} className="hover:underline">
-                        {it.sku}
-                      </Link>
+                      {isVendedor ? (
+                        <span>{it.sku}</span>
+                      ) : (
+                        <Link to={`/boms/${it.bom_id}`} className="hover:underline">
+                          {it.sku}
+                        </Link>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm">{it.nome_produto}</TableCell>
                     <TableCell className="text-right font-mono text-sm">{it.quantidade}</TableCell>

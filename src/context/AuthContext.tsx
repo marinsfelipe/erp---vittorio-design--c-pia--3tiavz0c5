@@ -3,7 +3,7 @@ import pb from '@/lib/pocketbase/client'
 import type { AuthUser } from '@/types/erp'
 import { garantirPerfil, setPerfilLocal } from '@/lib/perfil'
 
-export type PerfilAcesso = 'admin' | 'usuario'
+export type PerfilAcesso = 'admin' | 'usuario' | 'vendedor'
 export type StatusAcesso = 'pendente' | 'aprovado' | 'bloqueado'
 
 interface AuthContextType {
@@ -11,6 +11,7 @@ interface AuthContextType {
   perfil: PerfilAcesso
   status: StatusAcesso
   isAdmin: boolean
+  isVendedor: boolean
   isAprovado: boolean
   isLoading: boolean
   login: (email: string, password: string) => Promise<{ status: StatusAcesso; message?: string }>
@@ -41,7 +42,8 @@ function extrairCamposAuth(rec: any) {
     (typeof rec.get === 'function' ? (rec.get('status') as string) : '') ||
     ''
 
-  const perfil: PerfilAcesso = rawPerfil === 'admin' ? 'admin' : 'usuario'
+  const perfil: PerfilAcesso =
+    rawPerfil === 'admin' ? 'admin' : rawPerfil === 'vendedor' ? 'vendedor' : 'usuario'
   const status: StatusAcesso =
     rawStatus === 'aprovado' || rawStatus === 'bloqueado' || rawStatus === 'pendente'
       ? (rawStatus as StatusAcesso)
@@ -86,6 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(false)
 
   const isAdmin = perfil === 'admin'
+  const isVendedor = perfil === 'vendedor'
   const isAprovado = status === 'aprovado'
 
   useEffect(() => {
@@ -137,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           recStatus = g.status
         }
 
-        p = recPerfil === 'admin' ? 'admin' : 'usuario'
+        p = recPerfil === 'admin' ? 'admin' : recPerfil === 'vendedor' ? 'vendedor' : 'usuario'
         s =
           recStatus === 'aprovado' || recStatus === 'bloqueado' || recStatus === 'pendente'
             ? (recStatus as StatusAcesso)
@@ -269,6 +272,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         perfil,
         status,
         isAdmin,
+        isVendedor,
         isAprovado,
         isLoading,
         login,

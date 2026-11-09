@@ -378,7 +378,7 @@ export default function ClientesPage() {
                   id="uf"
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
                   value={form.uf || ''}
-                  onChange={set('uf')}
+                  onChange={(e) => setForm((prev) => ({ ...prev, uf: e.target.value }))}
                 >
                   <option value="">—</option>
                   {UFS.map((uf) => (

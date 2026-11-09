@@ -6,7 +6,7 @@ import { usuariosService } from '@/services/usuarios'
  * Retorna: { perfil, status }
  */
 export async function garantirPerfil(): Promise<{
-  perfil: 'admin' | 'usuario'
+  perfil: 'admin' | 'usuario' | 'vendedor'
   status: 'pendente' | 'aprovado' | 'bloqueado'
 }> {
   const userId = pb.authStore.record?.id
@@ -51,7 +51,7 @@ export async function garantirPerfil(): Promise<{
     }
   }
 
-  const finalPerfil = perfil === 'admin' ? 'admin' : 'usuario'
+  const finalPerfil = perfil === 'admin' ? 'admin' : perfil === 'vendedor' ? 'vendedor' : 'usuario'
   const finalStatus =
     status === 'aprovado' || status === 'bloqueado' || status === 'pendente' ? status : 'pendente'
 

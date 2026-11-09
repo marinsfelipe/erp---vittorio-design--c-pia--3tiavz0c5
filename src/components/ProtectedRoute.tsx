@@ -4,10 +4,14 @@ import { useAuth } from '@/context/AuthContext'
 
 interface ProtectedRouteProps {
   apenasAdmin?: boolean
+  bloquearVendedor?: boolean
 }
 
-export default function ProtectedRoute({ apenasAdmin = false }: ProtectedRouteProps) {
-  const { user, isLoading, status, isAdmin } = useAuth()
+export default function ProtectedRoute({
+  apenasAdmin = false,
+  bloquearVendedor = false,
+}: ProtectedRouteProps) {
+  const { user, isLoading, status, isAdmin, isVendedor } = useAuth()
 
   if (isLoading) {
     return (
@@ -44,7 +48,12 @@ export default function ProtectedRoute({ apenasAdmin = false }: ProtectedRoutePr
 
   // Guarda de perfil de administrador
   if (apenasAdmin && !isAdmin) {
-    return <Navigate to="/" replace />
+    return <Navigate to={isVendedor ? '/propostas' : '/'} replace />
+  }
+
+  // Guarda que impede perfil vendedor de acessar telas internas restritas (BOMs, Compras, etc.)
+  if (bloquearVendedor && isVendedor) {
+    return <Navigate to="/propostas" replace />
   }
 
   return <Outlet />

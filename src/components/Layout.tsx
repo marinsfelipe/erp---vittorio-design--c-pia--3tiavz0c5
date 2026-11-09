@@ -16,6 +16,8 @@ import {
   Users,
   ShieldCheck,
   KeyRound,
+  Package,
+  Building2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -43,7 +45,7 @@ import { toast } from 'sonner'
 
 export default function Layout() {
   const location = useLocation()
-  const { user, perfil, isAdmin, logout, alterarSenha } = useAuth()
+  const { user, perfil, isAdmin, isVendedor, logout, alterarSenha } = useAuth()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [pendentesCount, setPendentesCount] = useState<number>(0)
 
@@ -111,39 +113,65 @@ export default function Layout() {
   }
 
   // Links do menu lateral:
-  // - Usuário comum: Painel, Componentes, Importação, BOMs, Precificação, Propostas, Compras
+  // - Vendedor: Catálogo, Clientes e Propostas (NÃO vê BOMs, Compras, Parâmetros nem Usuários)
+  // - Usuário comum: Painel, Componentes, Importação, BOMs, Precificação, Propostas, Clientes, Catálogo, Compras
   // - Administrador: Todos os anteriores + Usuários e Parâmetros Financeiros
-  const navItems = [
-    { href: '/', label: 'Painel Geral', icon: Layers, adminOnly: false },
-    { href: '/componentes', label: 'Componentes', icon: Database, adminOnly: false },
-    { href: '/importar', label: 'Importar Componentes', icon: Upload, adminOnly: false },
-    { href: '/boms', label: 'Engenharia de BOMs', icon: Snowflake, adminOnly: false },
-    { href: '/precificacao', label: 'Simular Precificação', icon: DollarSign, adminOnly: false },
-    { href: '/propostas', label: 'Propostas Comerciais', icon: FileSpreadsheet, adminOnly: false },
-    { href: '/compras', label: 'Módulo de Compras', icon: ShoppingCart, adminOnly: false },
-    {
-      href: '/usuarios',
-      label: 'Usuários',
-      icon: Users,
-      adminOnly: true,
-      badge: pendentesCount > 0 ? pendentesCount : undefined,
-    },
-    {
-      href: '/parametros',
-      label: 'Parâmetros Financeiros',
-      icon: Sliders,
-      adminOnly: true,
-    },
-  ]
+  const navItems = isVendedor
+    ? [
+        { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
+        { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
+        {
+          href: '/propostas',
+          label: 'Propostas Comerciais',
+          icon: FileSpreadsheet,
+          adminOnly: false,
+        },
+      ]
+    : [
+        { href: '/', label: 'Painel Geral', icon: Layers, adminOnly: false },
+        { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
+        { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
+        {
+          href: '/propostas',
+          label: 'Propostas Comerciais',
+          icon: FileSpreadsheet,
+          adminOnly: false,
+        },
+        { href: '/componentes', label: 'Componentes', icon: Database, adminOnly: false },
+        { href: '/importar', label: 'Importar Componentes', icon: Upload, adminOnly: false },
+        { href: '/boms', label: 'Engenharia de BOMs', icon: Snowflake, adminOnly: false },
+        {
+          href: '/precificacao',
+          label: 'Simular Precificação',
+          icon: DollarSign,
+          adminOnly: false,
+        },
+        { href: '/compras', label: 'Módulo de Compras', icon: ShoppingCart, adminOnly: false },
+        {
+          href: '/usuarios',
+          label: 'Usuários',
+          icon: Users,
+          adminOnly: true,
+          badge: pendentesCount > 0 ? pendentesCount : undefined,
+        },
+        {
+          href: '/parametros',
+          label: 'Parâmetros Financeiros',
+          icon: Sliders,
+          adminOnly: true,
+        },
+      ]
 
   const filteredNavItems = navItems.filter((item) => !item.adminOnly || isAdmin)
+
+  const homeLink = isVendedor ? '/propostas' : '/'
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border bg-card/60 backdrop-blur-sm">
         <div className="p-4 border-b border-border flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2">
+          <Link to={homeLink} className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">
               <Snowflake className="h-5 w-5" />
             </div>
@@ -208,7 +236,11 @@ export default function Layout() {
                   </p>
                   <p className="text-[10px] text-muted-foreground truncate flex items-center gap-1 font-mono">
                     <ShieldCheck className="h-3 w-3 text-primary inline" />
-                    {perfil === 'admin' ? 'Administrador' : 'Usuário'}
+                    {perfil === 'admin'
+                      ? 'Administrador'
+                      : perfil === 'vendedor'
+                        ? 'Vendedor'
+                        : 'Usuário'}
                   </p>
                 </div>
               </button>
@@ -253,7 +285,7 @@ export default function Layout() {
 
       {/* Header Mobile */}
       <header className="md:hidden border-b border-border bg-card/80 backdrop-blur-sm p-3 flex items-center justify-between sticky top-0 z-20">
-        <Link to="/" className="flex items-center gap-2">
+        <Link to={homeLink} className="flex items-center gap-2">
           <div className="h-7 w-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">
             <Snowflake className="h-4 w-4" />
           </div>
