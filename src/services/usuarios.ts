@@ -68,21 +68,38 @@ export const usuariosService = {
   },
 
   async redefinirSenhaAdmin(userId: string, novaSenhaTemporaria: string): Promise<void> {
-    if (!userId) throw new Error('ID do usuário não fornecido.')
+    if (!userId || !userId.trim()) throw new Error('ID do usuário não fornecido.')
     const senhaTrim = (novaSenhaTemporaria || '').trim()
     if (senhaTrim.length < 8) {
-      throw new Error('A senha deve conter no mínimo 8 caracteres.')
+      throw new Error('A nova senha deve conter no mínimo 8 caracteres.')
     }
 
+    const rawToken = pb.authStore.token
+    if (!rawToken) {
+      throw new Error('Você precisa estar autenticado como administrador para redefinir senhas.')
+    }
+
+    const cleanToken = rawToken.replace(/^Bearer\s+/i, '').trim()
+
     try {
-      // Chama a rota personalizada backend/v1 executada com privilégio de servidor
-      await pb.send('/backend/v1/custom/admin/redefinir-senha', {
+      // Chama a rota personalizada backend/v1 com token explícito e formato compatível
+      const response: any = await pb.send('/backend/v1/custom/admin/redefinir-senha', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: cleanToken,
+        },
         body: {
-          userId,
+          targetUserId: userId.trim(),
+          userId: userId.trim(),
+          novaSenha: senhaTrim,
           password: senhaTrim,
         },
       })
+
+      if (response && response.success === false) {
+        throw new Error(response.message || 'Falha ao redefinir senha.')
+      }
     } catch (err: any) {
       // Trata mensagens de erro retornadas pelo backend
       const backendMsg = err?.response?.message || err?.data?.message || err?.message || ''
