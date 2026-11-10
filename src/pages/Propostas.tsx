@@ -33,6 +33,7 @@ import { toast } from 'sonner'
 
 const statusLabels: Record<string, string> = {
   rascunho: 'Rascunho',
+  aguardando_aprovacao: 'Aguardando aprovação',
   enviada: 'Enviada',
   em_negociacao: 'Em negociação',
   vendida: 'Vendida',
@@ -41,6 +42,7 @@ const statusLabels: Record<string, string> = {
 
 const statusColors: Record<string, string> = {
   rascunho: 'bg-muted text-muted-foreground',
+  aguardando_aprovacao: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300',
   enviada: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300',
   em_negociacao: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300',
   vendida: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',

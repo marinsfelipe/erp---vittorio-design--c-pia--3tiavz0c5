@@ -44,7 +44,7 @@ export default function ParametrosPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Parametro | null>(null)
 
-  // Σ% — somatório de TODOS os percentuais da tabela (recalcula a cada edição)
+  // Σ% — somatório dos percentuais que compõem o markup divisor (exclui limite comercial de desconto)
   const sigmaPct = somaPercentuais(parametros)
   const sigmaInvalido = sigmaPct >= 100
 

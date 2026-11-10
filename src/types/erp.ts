@@ -82,7 +82,15 @@ export interface BomItem {
   updated?: string
 }
 
-export type PropostaStatus = 'rascunho' | 'enviada' | 'em_negociacao' | 'vendida' | 'perdida'
+export type PropostaStatus =
+  | 'rascunho'
+  | 'enviada'
+  | 'em_negociacao'
+  | 'vendida'
+  | 'perdida'
+  | 'aguardando_aprovacao'
+
+export type DescontoTipo = 'valor' | 'percentual'
 
 export interface Proposta {
   id: string
@@ -93,8 +101,22 @@ export interface Proposta {
   observacoes: string
   criador?: string
   motivo_perda?: string
+  // Desconto geral e subtotal
+  subtotal?: number
+  desconto_tipo?: DescontoTipo
+  desconto_valor?: number
+  total_desconto_itens?: number
+  total_desconto_geral?: number
+  desconto_aplicado_por?: string
+  desconto_aplicado_em?: string
+  status_anterior_aprovacao?: PropostaStatus
   expand?: {
     criador?: {
+      id: string
+      name?: string
+      email?: string
+    }
+    desconto_aplicado_por?: {
       id: string
       name?: string
       email?: string
@@ -145,8 +167,53 @@ export interface PropostaItem {
   custo_unitario: number
   preco_direto?: boolean
   unidade?: string
+  // Desconto por item
+  desconto_tipo?: DescontoTipo
+  desconto_valor?: number
+  preco_liquido?: number
+  total_desconto?: number
+  desconto_aplicado_por?: string
+  desconto_aplicado_em?: string
+  expand?: {
+    desconto_aplicado_por?: {
+      id: string
+      name?: string
+      email?: string
+    }
+  }
   created?: string
   updated?: string
+}
+
+export interface PropostaDescontoAuditoria {
+  id: string
+  proposta: string
+  item?: string
+  tipo_alvo: 'item' | 'geral'
+  item_sku?: string
+  item_nome?: string
+  desconto_tipo: DescontoTipo
+  desconto_valor_informado: number
+  desconto_valor_total: number
+  valor_base_anterior?: number
+  valor_final_resultante?: number
+  usuario: string
+  usuario_nome?: string
+  usuario_email?: string
+  observacao?: string
+  created?: string
+  updated?: string
+  expand?: {
+    usuario?: {
+      id: string
+      name?: string
+      email?: string
+    }
+    proposta?: {
+      id: string
+      numero?: string
+    }
+  }
 }
 
 export type OrdemCompraStatus = 'pendente' | 'parcial' | 'concluida'

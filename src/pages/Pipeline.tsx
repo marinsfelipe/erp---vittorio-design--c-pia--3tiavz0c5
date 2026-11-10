@@ -35,6 +35,14 @@ export const PIPELINE_COLUMNS: PipelineColumnDef[] = [
     badgeColor: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
   },
   {
+    status: 'aguardando_aprovacao',
+    title: 'Aguardando Aprovação',
+    color: 'text-purple-700 dark:text-purple-300',
+    bgColor: 'bg-purple-50/60 dark:bg-purple-950/20',
+    borderColor: 'border-purple-200 dark:border-purple-900/50',
+    badgeColor: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300',
+  },
+  {
     status: 'enviada',
     title: 'Enviada',
     color: 'text-blue-700 dark:text-blue-300',
@@ -284,7 +292,12 @@ export default function PipelinePage() {
         const v = Number(p.valor_total) || 0
         stat.qtdPropostas += 1
 
-        if (p.status === 'rascunho' || p.status === 'enviada' || p.status === 'em_negociacao') {
+        if (
+          p.status === 'rascunho' ||
+          p.status === 'enviada' ||
+          p.status === 'em_negociacao' ||
+          p.status === 'aguardando_aprovacao'
+        ) {
           stat.totalProposto += v
         }
 

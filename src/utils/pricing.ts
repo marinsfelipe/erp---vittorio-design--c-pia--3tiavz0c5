@@ -28,7 +28,9 @@ export interface MarkupDivisorResult {
 
 /** Soma os percentuais (em %) de todos os parâmetros da tabela. */
 export function somaPercentuais(parametros: Parametro[]): number {
-  return parametros.reduce((acc, p) => acc + (Number(p.valor_percentual) || 0), 0)
+  return parametros
+    .filter((p) => p.chave !== 'limite_desconto_vendedor')
+    .reduce((acc, p) => acc + (Number(p.valor_percentual) || 0), 0)
 }
 
 /**
@@ -41,6 +43,9 @@ export function montarPercentuais(
   overrides?: { overhead?: number; margem?: number },
 ): number[] {
   const valores: Record<string, number> = { ...map }
+  // Parâmetros administrativos que NÃO entram no markup divisor de precificação
+  delete valores['limite_desconto_vendedor']
+
   if (overrides?.overhead !== undefined) valores['overhead'] = overrides.overhead
   if (overrides?.margem !== undefined) valores['margem_alvo'] = overrides.margem
   return Object.values(valores)

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-10T00:26:03.086Z",
+  "generatedAt": "2026-11-10T00:35:00.118Z",
   "collections": [
     {
       "name": "users",
@@ -462,7 +462,14 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["rascunho", "enviada", "vendida", "em_negociacao", "perdida"]
+          "selectValues": [
+            "rascunho",
+            "enviada",
+            "vendida",
+            "em_negociacao",
+            "perdida",
+            "aguardando_aprovacao"
+          ]
         },
         {
           "name": "valor_total",
@@ -499,6 +506,56 @@
         },
         {
           "name": "motivo_perda",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "subtotal",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "desconto_tipo",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["valor", "percentual"]
+        },
+        {
+          "name": "desconto_valor",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_desconto_itens",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_desconto_geral",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "desconto_aplicado_por",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "desconto_aplicado_em",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status_anterior_aprovacao",
           "type": "text",
           "required": false,
           "system": false
@@ -586,6 +643,44 @@
         },
         {
           "name": "unidade",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "desconto_tipo",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["valor", "percentual"]
+        },
+        {
+          "name": "desconto_valor",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "preco_liquido",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_desconto",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "desconto_aplicado_por",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "desconto_aplicado_em",
           "type": "text",
           "required": false,
           "system": false
@@ -1238,6 +1333,19 @@
           "autodateTriggers": ["onCreate", "onUpdate"]
         }
       ],
+      "indexes": []
+    },
+    {
+      "name": "proposta_desconto_auditoria",
+      "type": "base",
+      "apiRules": {
+        "list": null,
+        "view": null,
+        "create": null,
+        "update": null,
+        "delete": "@request.auth.id != '' && @request.auth.perfil = 'admin'"
+      },
+      "fields": [],
       "indexes": []
     }
   ]

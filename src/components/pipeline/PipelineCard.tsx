@@ -22,6 +22,7 @@ import {
   Calendar,
   DollarSign,
   ArrowRight,
+  ShieldAlert,
 } from 'lucide-react'
 
 interface PipelineCardProps {
@@ -142,6 +143,19 @@ export const PipelineCard: React.FC<PipelineCardProps> = ({
             {formatBRL(proposta.valor_total || 0)}
           </span>
         </div>
+
+        {/* Aviso de Aguardando Aprovação */}
+        {proposta.status === 'aguardando_aprovacao' && (
+          <div className="p-2 rounded bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/50 space-y-1">
+            <div className="flex items-center gap-1 text-[11px] font-semibold text-purple-800 dark:text-purple-300">
+              <ShieldAlert className="h-3 w-3 shrink-0" />
+              <span>Desconto pendente de aprovação</span>
+            </div>
+            <p className="text-[10px] text-purple-900/90 dark:text-purple-200 line-clamp-2">
+              Requer liberação do administrador para seguir no pipeline.
+            </p>
+          </div>
+        )}
 
         {/* Motivo da Perda (se houver) */}
         {proposta.status === 'perdida' && (

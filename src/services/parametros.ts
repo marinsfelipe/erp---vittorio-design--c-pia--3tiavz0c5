@@ -15,6 +15,18 @@ export const parametrosService = {
     })
   },
 
+  async getLimiteDescontoVendedor(): Promise<number> {
+    try {
+      const record = await pb
+        .collection('parametros')
+        .getFirstListItem<Parametro>("chave = 'limite_desconto_vendedor'")
+      return Number(record.valor_percentual) || 10
+    } catch {
+      // Default de segurança caso o perfil não tenha permissão de leitura ampla
+      return 10
+    }
+  },
+
   async create(data: Omit<Parametro, 'id' | 'created' | 'updated'>): Promise<Parametro> {
     return await pb.collection('parametros').create<Parametro>(data)
   },
