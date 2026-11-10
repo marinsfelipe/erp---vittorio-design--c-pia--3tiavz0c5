@@ -29,10 +29,14 @@ import {
   AlertCircle,
   Kanban,
   FileSignature,
+  Receipt,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { MotivoPerdaDialog } from '@/components/pipeline/MotivoPerdaDialog'
 import { GerarContratoDialog } from '@/components/contratos/GerarContratoDialog'
+import { faturamentosService } from '@/services/faturamentos'
+import { clientesService } from '@/services/clientes'
+import type { FaturamentoItemProduto } from '@/types/erp'
 
 const fluxo: PropostaStatus[] = ['rascunho', 'enviada', 'em_negociacao', 'vendida']
 const statusLabels: Record<PropostaStatus, string> = {
@@ -56,6 +60,7 @@ export default function PropostaDetalhePage() {
   const [motivoModalOpen, setMotivoModalOpen] = useState(false)
   const [motivoTexto, setMotivoTexto] = useState('')
   const [gerarContratoOpen, setGerarContratoOpen] = useState(false)
+  const [gerandoFaturamento, setGerandoFaturamento] = useState(false)
 
   const load = async () => {
     if (!id) return
@@ -80,6 +85,82 @@ export default function PropostaDetalhePage() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  const handleGerarFaturamento = async () => {
+    if (!proposta) return
+    setGerandoFaturamento(true)
+
+    try {
+      // 1. Verifica se já existe faturamento para esta proposta (evitar duplicidade)
+      const existentes = await faturamentosService.getByProposta(proposta.id)
+      if (existentes.length > 0) {
+        const fatExistente = existentes[0]
+        toast.info(
+          `Já existe o faturamento ${fatExistente.numero} para esta proposta. Redirecionando...`,
+        )
+        navigate('/faturamentos')
+        return
+      }
+
+      // 2. Busca dados cadastrais e fiscais do cliente
+      let clienteEncontrado = null
+      try {
+        const todosClientes = await clientesService.getAll()
+        const nomeAlvo = proposta.cliente.trim().toLowerCase()
+        clienteEncontrado =
+          todosClientes.find(
+            (c) =>
+              c.razao_social.trim().toLowerCase() === nomeAlvo ||
+              (c.contato && c.contato.trim().toLowerCase() === nomeAlvo),
+          ) || null
+      } catch (errCliente) {
+        console.warn('Erro ao associar cadastro do cliente para faturamento:', errCliente)
+      }
+
+      // 3. Monta itens a partir dos produtos da proposta
+      const produtosFaturamento: FaturamentoItemProduto[] = itens.map((item) => ({
+        descricao: item.nome_produto,
+        sku: item.sku,
+        quantidade: item.quantidade,
+        valor_unitario: item.preco_unitario,
+        valor_total: item.preco_unitario * item.quantidade,
+      }))
+
+      // 4. Obtém o próximo número de faturamento
+      const { numero, ano, sequencial } = await faturamentosService.getProximoNumero()
+
+      // 5. Cria o registro de faturamento
+      const novoFaturamento = await faturamentosService.create({
+        numero,
+        ano,
+        sequencial,
+        proposta: proposta.id,
+        proposta_numero: proposta.numero,
+        cliente: clienteEncontrado?.id,
+        cliente_razao_social: clienteEncontrado?.razao_social || proposta.cliente,
+        cliente_cnpj: clienteEncontrado?.cnpj || undefined,
+        cliente_ie: undefined,
+        cliente_endereco: clienteEncontrado?.endereco || undefined,
+        cliente_cidade: clienteEncontrado?.cidade || undefined,
+        cliente_uf: clienteEncontrado?.uf || undefined,
+        cliente_contato: clienteEncontrado?.contato || undefined,
+        cliente_email: clienteEncontrado?.email || undefined,
+        cliente_telefone: clienteEncontrado?.telefone || undefined,
+        produtos: produtosFaturamento,
+        valor_total: valorTotal,
+        status: 'pendente',
+        observacoes: proposta.observacoes || undefined,
+      })
+
+      toast.success(`Faturamento ${novoFaturamento.numero} gerado com sucesso! Redirecionando...`)
+      navigate('/faturamentos')
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao gerar faturamento.')
+    } finally {
+      setGerandoFaturamento(false)
+    }
+  }
 
   const handleAvancarStatus = async (statusDestino?: PropostaStatus) => {
     if (!proposta) return
@@ -223,10 +304,21 @@ export default function PropostaDetalhePage() {
           {proposta.status === 'vendida' && (
             <Button
               onClick={() => setGerarContratoOpen(true)}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+              variant="outline"
+              className="gap-2 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
             >
               <FileSignature className="h-4 w-4" />
               Gerar Contrato
+            </Button>
+          )}
+          {proposta.status === 'vendida' && (
+            <Button
+              onClick={handleGerarFaturamento}
+              disabled={gerandoFaturamento}
+              className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+            >
+              <Receipt className="h-4 w-4" />
+              {gerandoFaturamento ? 'Gerando...' : 'Gerar Faturamento'}
             </Button>
           )}
           {proposta.status === 'vendida' && !isVendedor && (

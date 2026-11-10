@@ -21,6 +21,7 @@ import {
   Kanban,
   FileSignature,
   ScrollText,
+  Receipt,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -116,9 +117,9 @@ export default function Layout() {
   }
 
   // Links do menu lateral:
-  // - Vendedor: Catálogo, Clientes e Propostas (NÃO vê BOMs, Compras, Parâmetros nem Usuários)
-  // - Usuário comum: Painel, Componentes, Importação, BOMs, Precificação, Propostas, Clientes, Catálogo, Compras
-  // - Administrador: Todos os anteriores + Usuários e Parâmetros Financeiros
+  // - Vendedor: Pipeline, Propostas, Contratos, Faturamentos, Catálogo, Clientes (NÃO vê BOMs, Compras, Parâmetros nem Usuários)
+  // - Usuário comum: Painel, Pipeline, Propostas, Contratos, Faturamentos, Catálogo, Clientes, Componentes, Importação, BOMs, Precificação, Compras
+  // - Administrador: Todos os anteriores + Usuários, Parâmetros Financeiros e Modelos de Contrato
   const navItems = isVendedor
     ? [
         { href: '/pipeline', label: 'Pipeline Comercial', icon: Kanban, adminOnly: false },
@@ -129,6 +130,12 @@ export default function Layout() {
           adminOnly: false,
         },
         { href: '/contratos', label: 'Contratos Gerados', icon: ScrollText, adminOnly: false },
+        {
+          href: '/faturamentos',
+          label: 'Faturamentos (Pré-Notas)',
+          icon: Receipt,
+          adminOnly: false,
+        },
         { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
         { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
       ]
@@ -142,6 +149,12 @@ export default function Layout() {
           adminOnly: false,
         },
         { href: '/contratos', label: 'Contratos Gerados', icon: ScrollText, adminOnly: false },
+        {
+          href: '/faturamentos',
+          label: 'Faturamentos (Pré-Notas)',
+          icon: Receipt,
+          adminOnly: false,
+        },
         { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
         { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
         { href: '/componentes', label: 'Componentes', icon: Database, adminOnly: false },

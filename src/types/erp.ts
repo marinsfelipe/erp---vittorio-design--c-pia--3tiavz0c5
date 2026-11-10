@@ -252,3 +252,69 @@ export interface ContratoInput {
   garantia?: string
   criador: string
 }
+
+export type FaturamentoStatus = 'pendente' | 'emitido'
+
+export interface FaturamentoItemProduto {
+  descricao: string
+  sku?: string
+  quantidade: number
+  valor_unitario: number
+  valor_total: number
+}
+
+export interface Faturamento {
+  id: string
+  numero: string
+  ano: number
+  sequencial: number
+  proposta?: string
+  proposta_numero?: string
+  cliente?: string
+  cliente_razao_social: string
+  cliente_cnpj?: string
+  cliente_ie?: string
+  cliente_endereco?: string
+  cliente_cidade?: string
+  cliente_uf?: string
+  cliente_contato?: string
+  cliente_email?: string
+  cliente_telefone?: string
+  produtos: FaturamentoItemProduto[]
+  valor_total: number
+  status: FaturamentoStatus
+  data_emissao?: string
+  observacoes?: string
+  criador: string
+  expand?: {
+    proposta?: Proposta
+    cliente?: Cliente
+    criador?: { id: string; name?: string; email?: string }
+  }
+  created?: string
+  updated?: string
+}
+
+export interface FaturamentoInput {
+  numero: string
+  ano: number
+  sequencial: number
+  proposta?: string
+  proposta_numero?: string
+  cliente?: string
+  cliente_razao_social: string
+  cliente_cnpj?: string
+  cliente_ie?: string
+  cliente_endereco?: string
+  cliente_cidade?: string
+  cliente_uf?: string
+  cliente_contato?: string
+  cliente_email?: string
+  cliente_telefone?: string
+  produtos: FaturamentoItemProduto[]
+  valor_total: number
+  status: FaturamentoStatus
+  data_emissao?: string
+  observacoes?: string
+  criador: string
+}

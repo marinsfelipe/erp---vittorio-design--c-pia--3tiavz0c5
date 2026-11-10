@@ -22,6 +22,7 @@ import CatalogoPage from '@/pages/Catalogo'
 import PipelinePage from '@/pages/Pipeline'
 import ModelosContratoPage from '@/pages/ModelosContrato'
 import ContratosPage from '@/pages/Contratos'
+import FaturamentosPage from '@/pages/Faturamentos'
 import NotFound from '@/pages/NotFound'
 
 export default function App() {
@@ -41,6 +42,7 @@ export default function App() {
               <Route path="/propostas" element={<PropostasPage />} />
               <Route path="/propostas/:id" element={<PropostaDetalhePage />} />
               <Route path="/contratos" element={<ContratosPage />} />
+              <Route path="/faturamentos" element={<FaturamentosPage />} />
 
               {/* Rotas de engenharia e produção: bloqueadas para vendedor */}
               <Route element={<ProtectedRoute bloquearVendedor />}>
