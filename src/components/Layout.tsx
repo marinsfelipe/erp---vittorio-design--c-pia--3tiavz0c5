@@ -22,6 +22,7 @@ import {
   FileSignature,
   ScrollText,
   Receipt,
+  Tag,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -165,6 +166,12 @@ export default function Layout() {
           label: 'Simular Precificação',
           icon: DollarSign,
           adminOnly: false,
+        },
+        {
+          href: '/tabela-precos',
+          label: 'Tabela de Preços',
+          icon: Tag,
+          adminOnly: true,
         },
         { href: '/compras', label: 'Módulo de Compras', icon: ShoppingCart, adminOnly: false },
         {

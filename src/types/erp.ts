@@ -40,6 +40,9 @@ export interface Parametro {
   updated?: string
 }
 
+export type OrigemPrecoTabela = 'calculado' | 'sobrepreco' | 'manual' | 'preco_direto'
+export type TipoSobrepreco = 'nenhum' | 'percentual' | 'valor'
+
 export interface Bom {
   id: string
   sku: string
@@ -51,6 +54,10 @@ export interface Bom {
   preco_direto?: boolean
   preco_venda?: number
   unidade?: string
+  origem_preco?: OrigemPrecoTabela
+  sobrepreco_tipo?: TipoSobrepreco
+  sobrepreco_valor?: number
+  preco_final_tabela?: number
   created?: string
   updated?: string
 }

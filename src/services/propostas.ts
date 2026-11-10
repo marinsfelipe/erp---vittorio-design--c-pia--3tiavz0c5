@@ -50,14 +50,24 @@ export async function montarItensProposta(
     if (!resultado.valido) {
       throw new Error(resultado.erro ?? 'Parâmetro de precificação inválido.')
     }
-    const precoVenda = resultado.precoVenda
+    const precoCalculado = resultado.precoVenda
+
+    // Prioridade do preço unitário: preço final da tabela > preço calculado markup
+    const precoUnitarioPadrao =
+      bom.preco_final_tabela !== undefined &&
+      bom.preco_final_tabela !== null &&
+      Number(bom.preco_final_tabela) > 0
+        ? Number(bom.preco_final_tabela)
+        : precoCalculado
+
     itens.push({
       bom_id: bom.id,
       sku: bom.sku,
       nome_produto: bom.nome,
       quantidade,
-      preco_unitario: precoVenda,
+      preco_unitario: precoUnitarioPadrao,
       custo_unitario: custo,
+      unidade: bom.unidade || 'UN',
     })
   }
   return itens

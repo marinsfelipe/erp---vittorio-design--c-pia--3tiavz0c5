@@ -80,8 +80,14 @@ export function AdicionarProdutoAvulsoDialog({
       // Preencher campos automaticamente se o usuário não tiver preenchido
       if (match.nome) setDescricao(match.nome)
       if (match.unidade) setUnidade(match.unidade)
-      if (match.preco_venda !== undefined && match.preco_venda !== null && match.preco_venda > 0) {
-        setPrecoVenda(String(match.preco_venda))
+      const precoSugerido =
+        match.preco_final_tabela !== undefined &&
+        match.preco_final_tabela !== null &&
+        match.preco_final_tabela > 0
+          ? match.preco_final_tabela
+          : match.preco_venda
+      if (precoSugerido !== undefined && precoSugerido !== null && precoSugerido > 0) {
+        setPrecoVenda(String(precoSugerido))
       }
     } else {
       setProdutoEncontrado(null)
@@ -92,7 +98,13 @@ export function AdicionarProdutoAvulsoDialog({
     setCodigo(p.sku)
     setDescricao(p.nome)
     setUnidade(p.unidade || 'UN')
-    if (p.preco_venda) setPrecoVenda(String(p.preco_venda))
+    const precoSugerido =
+      p.preco_final_tabela !== undefined &&
+      p.preco_final_tabela !== null &&
+      p.preco_final_tabela > 0
+        ? p.preco_final_tabela
+        : p.preco_venda
+    if (precoSugerido) setPrecoVenda(String(precoSugerido))
     setProdutoEncontrado(p)
   }
 

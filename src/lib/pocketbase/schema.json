@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-10T00:19:13.441Z",
+  "generatedAt": "2026-11-10T00:26:03.086Z",
   "collections": [
     {
       "name": "users",
@@ -272,6 +272,32 @@
         {
           "name": "unidade",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "origem_preco",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["calculado", "sobrepreco", "manual", "preco_direto"]
+        },
+        {
+          "name": "sobrepreco_tipo",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["nenhum", "percentual", "valor"]
+        },
+        {
+          "name": "sobrepreco_valor",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "preco_final_tabela",
+          "type": "number",
           "required": false,
           "system": false
         }

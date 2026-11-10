@@ -76,15 +76,22 @@ export default function CatalogoPage() {
         // Mapeamento por SKU para consolidar o catálogo
         const mapPorSku = new Map<string, CatalogoProdutoItem>()
 
-        // 1. Insere produtos cadastrados em boms que tenham preco_venda ou preco_direto
+        // 1. Insere produtos cadastrados em boms que tenham preco_final_tabela, preco_venda ou preco_direto
         for (const p of produtosCadastrados) {
+          const precoCatalogo =
+            p.preco_final_tabela !== undefined &&
+            p.preco_final_tabela !== null &&
+            Number(p.preco_final_tabela) > 0
+              ? Number(p.preco_final_tabela)
+              : p.preco_venda || 0
+
           mapPorSku.set(p.sku.trim().toUpperCase(), {
             sku: p.sku,
             nome_produto: p.nome,
-            preco_unitario: p.preco_venda || 0,
+            preco_unitario: precoCatalogo,
             preco_direto: Boolean(p.preco_direto),
             unidade: p.unidade || 'UN',
-            origem: p.preco_direto ? 'Cadastro Avulso' : 'BOM',
+            origem: p.preco_direto ? 'Cadastro Avulso' : 'Tabela / BOM',
             created: p.created,
           })
         }

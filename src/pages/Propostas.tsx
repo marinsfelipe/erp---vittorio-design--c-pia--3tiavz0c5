@@ -148,7 +148,13 @@ export default function PropostasPage() {
       overhead: bom.overhead_percentual,
       margem: bom.margem_percentual,
     })
-    const precoVenda = calcularMarkupDivisor(custo, percentuais).precoVenda
+    const precoCalculado = calcularMarkupDivisor(custo, percentuais).precoVenda
+    const precoVenda =
+      bom.preco_final_tabela !== undefined &&
+      bom.preco_final_tabela !== null &&
+      Number(bom.preco_final_tabela) > 0
+        ? Number(bom.preco_final_tabela)
+        : precoCalculado
     return acc + precoVenda * qtd
   }, 0)
 
