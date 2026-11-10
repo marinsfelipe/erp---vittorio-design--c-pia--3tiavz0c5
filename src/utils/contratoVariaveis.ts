@@ -100,10 +100,19 @@ export function extrairVariaveisProposta(params: {
 
   if (itens && itens.length > 0) {
     listaProdutos = itens
-      .map(
-        (it) =>
-          `- ${it.quantidade}x ${it.nome_produto} (${it.sku}): ${formatBRL(it.preco_unitario)} un.`,
-      )
+      .map((it) => {
+        // Se houver desconto no item, calcula o preço unitário líquido; caso contrário, usa preco_unitario
+let precoEfetivo = Number(it.preco_unitario || 0)
+const valorDesc = Number(it.desconto_valor || 0)
+if (it.desconto_tipo && valorDesc > 0) {
+  if (it.desconto_tipo === 'percentual') {
+    precoEfetivo = Math.max(0, precoEfetivo * (1 - valorDesc / 100))
+  } else if (it.desconto_tipo === 'valor') {
+    precoEfetivo = Math.max(0, precoEfetivo - valorDesc)
+  }
+}
+return `- ${it.quantidade}x ${it.nome_produto} (${it.sku}): ${formatBRL(precoEfetivo)} un.`
+      })
       .join('\n')
     quantidadeTotal = itens.reduce((acc, it) => acc + (it.quantidade || 0), 0)
   } else {

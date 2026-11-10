@@ -32,6 +32,7 @@ import {
   RefreshCw,
   Calculator,
   HelpCircle,
+  ShieldAlert,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
@@ -175,6 +176,60 @@ export default function ParametrosPage() {
           </Button>
         </div>
       </div>
+
+      {/* Card Especial de Limite de Desconto do Vendedor */}
+      {(() => {
+        const paramLimite = parametros.find((p) => p.chave === 'limite_desconto_vendedor')
+        return (
+          <Card className="border-amber-200 dark:border-amber-900/60 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <CardTitle className="text-base font-bold text-amber-950 dark:text-amber-100">
+                    Limite de Desconto Comercial (Vendedor)
+                  </CardTitle>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="border-amber-300 text-amber-800 dark:text-amber-300 text-xs"
+                >
+                  Alçada Comercial
+                </Badge>
+              </div>
+              <CardDescription className="text-xs text-amber-800/80 dark:text-amber-300/80">
+                Percentual máximo de desconto que o vendedor pode conceder na proposta sem
+                necessitar da liberação do administrador. Não afeta a fórmula do markup divisor nem
+                os custos industriais.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-baseline justify-between pt-1">
+                <div>
+                  <span className="text-3xl font-mono font-bold text-amber-700 dark:text-amber-400">
+                    {formatPercent(paramLimite ? paramLimite.valor_percentual : 10)}
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {paramLimite?.descricao ||
+                      'Descontos acima desta alçada colocam a proposta em "Aguardando aprovação".'}
+                  </p>
+                </div>
+                {paramLimite && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenEdit(paramLimite)}
+                    className="h-8 gap-1.5 text-xs border-amber-300 hover:bg-amber-100/50 dark:border-amber-800"
+                  >
+                    <Edit2 className="h-3 w-3" />
+                    Alterar Alçada
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
 
       {/* Cards de Métricas Principais */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

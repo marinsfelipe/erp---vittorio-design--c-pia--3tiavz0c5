@@ -138,20 +138,14 @@ export default function PropostaDetalhePage() {
     if (!proposta || !itemSelecionadoDesconto) return
     setIsSubmittingDesconto(true)
     try {
-      const resultado = await propostasService.aplicarDescontoItem(
-        proposta.id,
-        itemSelecionadoDesconto.id,
-        tipo,
-        valor,
-        user
-          ? {
-              id: user.id,
-              name: (user as any).name,
-              email: user.email,
-              perfil: (user as any).perfil,
-            }
-          : undefined,
-      )
+      const resultado = await propostasService.aplicarDescontoItem({
+        propostaId: proposta.id,
+        itemId: itemSelecionadoDesconto.id,
+        descontoTipo: tipo,
+        descontoValor: valor,
+        isVendedor,
+        userPerfil: user?.perfil,
+      })
 
       setProposta(resultado.proposta)
       setItens((prev) => prev.map((i) => (i.id === resultado.item.id ? resultado.item : i)))
@@ -181,24 +175,18 @@ export default function PropostaDetalhePage() {
     if (!proposta) return
     setIsSubmittingDesconto(true)
     try {
-      const atualizada = await propostasService.aplicarDescontoGeral(
-        proposta.id,
-        tipo,
-        valor,
-        user
-          ? {
-              id: user.id,
-              name: (user as any).name,
-              email: user.email,
-              perfil: (user as any).perfil,
-            }
-          : undefined,
-      )
+      const resultado = await propostasService.aplicarDescontoGeral({
+        propostaId: proposta.id,
+        descontoTipo: tipo,
+        descontoValor: valor,
+        isVendedor,
+        userPerfil: user?.perfil,
+      })
 
-      setProposta(atualizada)
+      setProposta(resultado.proposta)
       setDescontoGeralModalOpen(false)
 
-      if (atualizada.status === 'aguardando_aprovacao') {
+      if (resultado.proposta.status === 'aguardando_aprovacao') {
         toast.warning(
           `Desconto geral aplicado! Acima do limite (${limiteVendedor}%), a proposta requer liberação do administrador.`,
         )
@@ -222,16 +210,7 @@ export default function PropostaDetalhePage() {
     if (!proposta || !isAdmin) return
     setIsSaving(true)
     try {
-      const liberada = await propostasService.aprovarDesconto(
-        proposta.id,
-        user
-          ? {
-              id: user.id,
-              name: (user as any).name,
-              email: user.email,
-            }
-          : undefined,
-      )
+      const liberada = await propostasService.aprovarDesconto(proposta.id)
       setProposta(liberada)
       toast.success(
         `Desconto aprovado pelo administrador! Proposta retornou para ${statusLabels[liberada.status]}.`,
@@ -249,17 +228,7 @@ export default function PropostaDetalhePage() {
     if (!proposta || !isAdmin) return
     setIsSaving(true)
     try {
-      const recusada = await propostasService.recusarDesconto(
-        proposta.id,
-        motivo,
-        user
-          ? {
-              id: user.id,
-              name: (user as any).name,
-              email: user.email,
-            }
-          : undefined,
-      )
+      const recusada = await propostasService.recusarDesconto(proposta.id, motivo)
       setProposta(recusada)
       setRecusarDescontoModalOpen(false)
       toast.info('Desconto reprovado e ajustado pelo administrador.')
@@ -306,13 +275,10 @@ export default function PropostaDetalhePage() {
       // 3. Monta itens a partir dos produtos da proposta usando preços líquidos
       const produtosFaturamento: FaturamentoItemProduto[] = itens.map((item) => {
         const precoLiquido =
-          item.preco_liquido_unitario !== undefined && item.preco_liquido_unitario !== null
-            ? item.preco_liquido_unitario
+          item.preco_liquido !== undefined && item.preco_liquido !== null
+            ? item.preco_liquido
             : item.preco_unitario
-        const subtotalLiquido =
-          item.subtotal_liquido !== undefined && item.subtotal_liquido !== null
-            ? item.subtotal_liquido
-            : precoLiquido * item.quantidade
+        const subtotalLiquido = precoLiquido * item.quantidade
 
         return {
           descricao: item.nome_produto,
@@ -413,10 +379,11 @@ export default function PropostaDetalhePage() {
     return <div className="text-center py-16 text-muted-foreground">Proposta não encontrada.</div>
   }
 
-  const totaisCalculados = calcularTotaisProposta(itens, {
-    desconto_geral_tipo: proposta.desconto_geral_tipo,
-    desconto_geral_valor: proposta.desconto_geral_valor,
-  })
+  const totaisCalculados = calcularTotaisProposta(
+    itens,
+    proposta.desconto_tipo,
+    proposta.desconto_valor,
+  )
 
   // Se proposta tiver valor_total salvo, usamos o total líquido calculado
   const valorTotalFinal = totaisCalculados.totalFinal
@@ -711,11 +678,11 @@ export default function PropostaDetalhePage() {
         <div>
           <ResumoTotaisPropostaCard
             totais={totaisCalculados}
+            proposta={proposta}
+            onAbrirDescontoGeral={() => setDescontoGeralModalOpen(true)}
+            disabled={proposta.status === 'vendida' || proposta.status === 'perdida'}
+            isVendedor={isVendedor}
             limiteVendedor={limiteVendedor}
-            descontoGeralTipo={proposta.desconto_geral_tipo}
-            descontoGeralValor={proposta.desconto_geral_valor}
-            onAplicarDescontoGeral={() => setDescontoGeralModalOpen(true)}
-            readOnly={proposta.status === 'vendida' || proposta.status === 'perdida'}
           />
         </div>
       </div>
@@ -762,16 +729,14 @@ export default function PropostaDetalhePage() {
                 {itens.map((it) => {
                   const temDesconto = Number(it.desconto_valor) > 0
                   const precoLiquido =
-                    it.preco_liquido_unitario !== undefined && it.preco_liquido_unitario !== null
-                      ? it.preco_liquido_unitario
+                    it.preco_liquido !== undefined && it.preco_liquido !== null
+                      ? it.preco_liquido
                       : it.preco_unitario
-                  const subtotalLiquido =
-                    it.subtotal_liquido !== undefined && it.subtotal_liquido !== null
-                      ? it.subtotal_liquido
-                      : precoLiquido * it.quantidade
+                  const subtotalLiquido = precoLiquido * it.quantidade
 
                   return (
                     <TableRow key={it.id} className="hover:bg-muted/30">
+                      {' '}
                       <TableCell className="font-mono text-xs font-bold text-primary">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {isVendedor || it.preco_direto ? (
@@ -866,7 +831,7 @@ export default function PropostaDetalhePage() {
 
       {/* Histórico de Auditoria de Descontos (Visível Exclusivamente para Administrador) */}
       {isAdmin && (
-        <HistoricoAuditoriaDescontos auditorias={auditorias} isLoading={loadingAuditoria} />
+        <HistoricoAuditoriaDescontos registros={auditorias} isLoading={loadingAuditoria} />
       )}
 
       {/* Modal para solicitar motivo da perda */}
@@ -912,13 +877,12 @@ export default function PropostaDetalhePage() {
       <AplicarDescontoGeralDialog
         open={descontoGeralModalOpen}
         onOpenChange={setDescontoGeralModalOpen}
-        subtotal={totaisCalculados.subtotalItensLiquidos}
-        descontoAtualTipo={proposta.desconto_geral_tipo}
-        descontoAtualValor={proposta.desconto_geral_valor}
-        limiteVendedor={limiteVendedor}
-        isVendedor={isVendedor}
+        proposta={proposta}
+        itens={itens}
         onConfirm={handleConfirmarDescontoGeral}
         isSubmitting={isSubmittingDesconto}
+        limiteVendedor={limiteVendedor}
+        isVendedor={isVendedor}
       />
 
       <RecusarDescontoDialog

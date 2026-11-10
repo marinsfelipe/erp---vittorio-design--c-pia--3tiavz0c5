@@ -11,6 +11,7 @@ import { PipelineCard } from '@/components/pipeline/PipelineCard'
 import { PipelineMetrics, type VendedorStats } from '@/components/pipeline/PipelineMetrics'
 import { PipelineFiltersBar } from '@/components/pipeline/PipelineFiltersBar'
 import { MotivoPerdaDialog } from '@/components/pipeline/MotivoPerdaDialog'
+import { RecusarDescontoDialog } from '@/components/propostas/RecusarDescontoDialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Kanban, Plus, RotateCw, FileSpreadsheet } from 'lucide-react'
@@ -102,6 +103,11 @@ export default function PipelinePage() {
   const [propostaPerdidaAlvo, setPropostaPerdidaAlvo] = useState<Proposta | null>(null)
   const [motivoTexto, setMotivoTexto] = useState('')
   const [isSubmittingPerda, setIsSubmittingPerda] = useState(false)
+
+  // Diálogo de recusa de desconto (admin)
+  const [recusarModalOpen, setRecusarModalOpen] = useState(false)
+  const [propostaRecusaAlvo, setPropostaRecusaAlvo] = useState<Proposta | null>(null)
+  const [isSubmittingRecusa, setIsSubmittingRecusa] = useState(false)
 
   // Carrega propostas, clientes e (se admin) usuários/vendedores
   const carregarDados = async () => {
@@ -382,6 +388,18 @@ export default function PipelinePage() {
     const proposta = propostas.find((p) => p.id === id)
     if (!proposta || proposta.status === targetStatus) return
 
+    // Vendedor não pode mover propostas que estão aguardando aprovação
+    if (isVendedor && proposta.status === 'aguardando_aprovacao') {
+      toast.warning('Esta proposta está aguardando aprovação do administrador.')
+      return
+    }
+
+    // Apenas admin pode liberar proposta em aguardando_aprovacao
+    if (proposta.status === 'aguardando_aprovacao' && !isAdmin) {
+      toast.error('Apenas administradores podem liberar propostas com desconto excedente.')
+      return
+    }
+
     solicitarTransicaoStatus(proposta, targetStatus)
   }
 
@@ -458,6 +476,43 @@ export default function PipelinePage() {
       setMotivoTexto('')
     } finally {
       setIsSubmittingPerda(false)
+    }
+  }
+
+  // Aprovação e recusa de desconto direto no Pipeline (Admin)
+  const handleAprovarDescontoPipeline = async (prop: Proposta) => {
+    if (!isAdmin) return
+    try {
+      const atualizada = await propostasService.aprovarDesconto(prop.id)
+      setPropostas((prev) => prev.map((p) => (p.id === prop.id ? atualizada : p)))
+      toast.success(
+        `Desconto da proposta ${prop.numero || ''} aprovado! Status restaurado para "${atualizada.status}".`,
+      )
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Erro ao aprovar proposta.')
+    }
+  }
+
+  const handleAbrirRecusarDescontoPipeline = (prop: Proposta) => {
+    setPropostaRecusaAlvo(prop)
+    setRecusarModalOpen(true)
+  }
+
+  const handleConfirmarRecusaPipeline = async (motivo: string) => {
+    if (!propostaRecusaAlvo || !isAdmin) return
+    setIsSubmittingRecusa(true)
+    try {
+      const atualizada = await propostasService.recusarDesconto(propostaRecusaAlvo.id, motivo)
+      setPropostas((prev) => prev.map((p) => (p.id === propostaRecusaAlvo.id ? atualizada : p)))
+      setRecusarModalOpen(false)
+      setPropostaRecusaAlvo(null)
+      toast.info(`Desconto da proposta ${propostaRecusaAlvo.numero || ''} recusado e zerado.`)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Erro ao recusar desconto.')
+    } finally {
+      setIsSubmittingRecusa(false)
     }
   }
 
@@ -566,7 +621,7 @@ export default function PipelinePage() {
           Carregando pipeline comercial...
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-start">
           {PIPELINE_COLUMNS.map((col) => {
             const colPropostas = propostasFiltradas.filter((p) => p.status === col.status)
             const valorTotalCol = colPropostas.reduce((a, b) => a + (Number(b.valor_total) || 0), 0)
@@ -617,6 +672,9 @@ export default function PipelinePage() {
                         key={prop.id}
                         proposta={prop}
                         isVendedor={isVendedor}
+                        isAdmin={isAdmin}
+                        onAprovarDesconto={handleAprovarDescontoPipeline}
+                        onRecusarDesconto={handleAbrirRecusarDescontoPipeline}
                         onDragStart={handleDragStart}
                         onMoveToStatus={solicitarTransicaoStatus}
                       />
@@ -643,6 +701,18 @@ export default function PipelinePage() {
           setPropostaPerdidaAlvo(null)
           setMotivoTexto('')
         }}
+      />
+
+      {/* Diálogo de Recusa de Desconto (Admin) */}
+      <RecusarDescontoDialog
+        open={recusarModalOpen}
+        onOpenChange={(open) => {
+          setRecusarModalOpen(open)
+          if (!open) setPropostaRecusaAlvo(null)
+        }}
+        propostaNumero={propostaRecusaAlvo?.numero}
+        onConfirm={handleConfirmarRecusaPipeline}
+        isSubmitting={isSubmittingRecusa}
       />
     </div>
   )

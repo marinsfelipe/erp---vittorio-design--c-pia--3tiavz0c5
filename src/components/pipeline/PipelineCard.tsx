@@ -30,11 +30,17 @@ interface PipelineCardProps {
   isVendedor: boolean
   onDragStart: (e: React.DragEvent<HTMLDivElement>, id: string) => void
   onMoveToStatus: (proposta: Proposta, status: string) => void
+  isAdmin?: boolean
+  onAprovarDesconto?: (proposta: Proposta) => void
+  onRecusarDesconto?: (proposta: Proposta) => void
 }
 
 export const PipelineCard: React.FC<PipelineCardProps> = ({
   proposta,
   isVendedor,
+  isAdmin,
+  onAprovarDesconto,
+  onRecusarDesconto,
   onDragStart,
   onMoveToStatus,
 }) => {
@@ -146,7 +152,7 @@ export const PipelineCard: React.FC<PipelineCardProps> = ({
 
         {/* Aviso de Aguardando Aprovação */}
         {proposta.status === 'aguardando_aprovacao' && (
-          <div className="p-2 rounded bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/50 space-y-1">
+          <div className="p-2 rounded bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-900/50 space-y-1.5">
             <div className="flex items-center gap-1 text-[11px] font-semibold text-purple-800 dark:text-purple-300">
               <ShieldAlert className="h-3 w-3 shrink-0" />
               <span>Desconto pendente de aprovação</span>
@@ -154,6 +160,36 @@ export const PipelineCard: React.FC<PipelineCardProps> = ({
             <p className="text-[10px] text-purple-900/90 dark:text-purple-200 line-clamp-2">
               Requer liberação do administrador para seguir no pipeline.
             </p>
+            {isAdmin && (onAprovarDesconto || onRecusarDesconto) && (
+              <div className="flex items-center gap-1.5 pt-1">
+                {onAprovarDesconto && (
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onAprovarDesconto(proposta)
+                    }}
+                    className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    Aprovar
+                  </Button>
+                )}
+                {onRecusarDesconto && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onRecusarDesconto(proposta)
+                    }}
+                    className="h-6 text-[10px] px-2 text-rose-600 border-rose-200 hover:bg-rose-50"
+                  >
+                    Recusar
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
