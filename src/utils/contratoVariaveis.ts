@@ -101,17 +101,18 @@ export function extrairVariaveisProposta(params: {
   if (itens && itens.length > 0) {
     listaProdutos = itens
       .map((it) => {
-        // Se houver desconto no item, calcula o preço unitário líquido; caso contrário, usa preco_unitario
-let precoEfetivo = Number(it.preco_unitario || 0)
-const valorDesc = Number(it.desconto_valor || 0)
-if (it.desconto_tipo && valorDesc > 0) {
-  if (it.desconto_tipo === 'percentual') {
-    precoEfetivo = Math.max(0, precoEfetivo * (1 - valorDesc / 100))
-  } else if (it.desconto_tipo === 'valor') {
-    precoEfetivo = Math.max(0, precoEfetivo - valorDesc)
-  }
-}
-return `- ${it.quantidade}x ${it.nome_produto} (${it.sku}): ${formatBRL(precoEfetivo)} un.`
+        // Se houver desconto no item, utiliza preco_liquido gravado ou calcula o preço unitário líquido
+        let precoEfetivo = Number(it.preco_liquido ?? it.preco_unitario ?? 0)
+        if (!it.preco_liquido && it.desconto_tipo && Number(it.desconto_valor || 0) > 0) {
+          const valorDesc = Number(it.desconto_valor || 0)
+          const base = Number(it.preco_unitario || 0)
+          if (it.desconto_tipo === 'percentual') {
+            precoEfetivo = Math.max(0, base * (1 - valorDesc / 100))
+          } else if (it.desconto_tipo === 'valor') {
+            precoEfetivo = Math.max(0, base - valorDesc)
+          }
+        }
+        return `- ${it.quantidade}x ${it.nome_produto} (${it.sku}): ${formatBRL(precoEfetivo)} un.`
       })
       .join('\n')
     quantidadeTotal = itens.reduce((acc, it) => acc + (it.quantidade || 0), 0)
