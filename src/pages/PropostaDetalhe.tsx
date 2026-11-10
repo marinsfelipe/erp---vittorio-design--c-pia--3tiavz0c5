@@ -30,10 +30,13 @@ import {
   Kanban,
   FileSignature,
   Receipt,
+  PlusCircle,
+  Tag,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { MotivoPerdaDialog } from '@/components/pipeline/MotivoPerdaDialog'
 import { GerarContratoDialog } from '@/components/contratos/GerarContratoDialog'
+import { AdicionarProdutoAvulsoDialog } from '@/components/propostas/AdicionarProdutoAvulsoDialog'
 import { faturamentosService } from '@/services/faturamentos'
 import { clientesService } from '@/services/clientes'
 import type { FaturamentoItemProduto } from '@/types/erp'
@@ -61,6 +64,7 @@ export default function PropostaDetalhePage() {
   const [motivoTexto, setMotivoTexto] = useState('')
   const [gerarContratoOpen, setGerarContratoOpen] = useState(false)
   const [gerandoFaturamento, setGerandoFaturamento] = useState(false)
+  const [produtoAvulsoOpen, setProdutoAvulsoOpen] = useState(false)
 
   const load = async () => {
     if (!id) return
@@ -426,9 +430,22 @@ export default function PropostaDetalhePage() {
 
       {/* Itens */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg font-bold">SKUs da Proposta</CardTitle>
-          <CardDescription>Produtos (BOMs) incluídos nesta proposta</CardDescription>
+        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-lg font-bold">Produtos da Proposta</CardTitle>
+            <CardDescription>Produtos normais e avulsos incluídos nesta proposta</CardDescription>
+          </div>
+          {proposta.status !== 'perdida' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setProdutoAvulsoOpen(true)}
+              className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Adicionar produto avulso
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {itens.length === 0 ? (
@@ -450,16 +467,36 @@ export default function PropostaDetalhePage() {
                 {itens.map((it) => (
                   <TableRow key={it.id} className="hover:bg-muted/30">
                     <TableCell className="font-mono text-xs font-bold text-primary">
-                      {isVendedor ? (
-                        <span>{it.sku}</span>
-                      ) : (
-                        <Link to={`/boms/${it.bom_id}`} className="hover:underline">
-                          {it.sku}
-                        </Link>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {isVendedor || it.preco_direto ? (
+                          <span>{it.sku}</span>
+                        ) : (
+                          <Link to={`/boms/${it.bom_id}`} className="hover:underline">
+                            {it.sku}
+                          </Link>
+                        )}
+                        {it.preco_direto && (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] px-1.5 py-0 font-normal bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800"
+                          >
+                            <Tag className="h-2.5 w-2.5 mr-0.5 inline" />
+                            Preço Direto
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-sm">{it.nome_produto}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">{it.quantidade}</TableCell>
+                    <TableCell className="text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <span>{it.nome_produto}</span>
+                        {it.unidade && it.unidade !== 'UN' && (
+                          <span className="text-xs text-muted-foreground">({it.unidade})</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {it.quantidade} {it.unidade || ''}
+                    </TableCell>
                     <TableCell className="text-right font-mono text-sm">
                       {formatBRL(it.preco_unitario)}
                     </TableCell>
@@ -503,6 +540,13 @@ export default function PropostaDetalhePage() {
         onOpenChange={setGerarContratoOpen}
         proposta={proposta}
         itens={itens}
+      />
+
+      <AdicionarProdutoAvulsoDialog
+        open={produtoAvulsoOpen}
+        onOpenChange={setProdutoAvulsoOpen}
+        propostaId={proposta.id}
+        onSuccess={load}
       />
     </div>
   )

@@ -4,12 +4,14 @@ import type { Proposta, PropostaItem, PropostaStatus, Bom, BomItem, Parametro } 
 
 /** Snapshot estático dos dados do BOM usados na proposta (imune a mudanças futuras). */
 export interface PropostaItemInput {
-  bom_id: string
+  bom_id?: string
   sku: string
   nome_produto: string
   quantidade: number
   preco_unitario: number
   custo_unitario: number
+  preco_direto?: boolean
+  unidade?: string
 }
 
 /** Custo consolidado (soma qtd × custo unitário) dos componentes do BOM. */
@@ -103,15 +105,43 @@ export const propostasService = {
     for (const it of itens) {
       await pb.collection('proposta_items').create<PropostaItem>({
         proposta_id: proposta.id,
-        bom_id: it.bom_id,
+        bom_id: it.bom_id || '',
         sku: it.sku,
         nome_produto: it.nome_produto,
         quantidade: it.quantidade,
         preco_unitario: it.preco_unitario,
         custo_unitario: it.custo_unitario,
+        preco_direto: it.preco_direto ?? false,
+        unidade: it.unidade || 'UN',
       })
     }
     return proposta
+  },
+
+  async addItem(propostaId: string, item: PropostaItemInput): Promise<PropostaItem> {
+    const createdItem = await pb.collection('proposta_items').create<PropostaItem>({
+      proposta_id: propostaId,
+      bom_id: item.bom_id || '',
+      sku: item.sku,
+      nome_produto: item.nome_produto,
+      quantidade: item.quantidade,
+      preco_unitario: item.preco_unitario,
+      custo_unitario: item.custo_unitario,
+      preco_direto: item.preco_direto ?? false,
+      unidade: item.unidade || 'UN',
+    })
+
+    // Recalcular valor total da proposta
+    const allItems = await this.getItems(propostaId)
+    const novoValorTotal = allItems.reduce(
+      (acc, it) => acc + (Number(it.preco_unitario) || 0) * (Number(it.quantidade) || 0),
+      0,
+    )
+    await pb.collection('propostas').update(propostaId, {
+      valor_total: novoValorTotal,
+    })
+
+    return createdItem
   },
 
   async updateStatus(id: string, status: PropostaStatus, motivoPerda?: string): Promise<Proposta> {

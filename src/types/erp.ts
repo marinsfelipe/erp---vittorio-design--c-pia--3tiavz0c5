@@ -48,6 +48,9 @@ export interface Bom {
   categoria?: string
   overhead_percentual?: number
   margem_percentual?: number
+  preco_direto?: boolean
+  preco_venda?: number
+  unidade?: string
   created?: string
   updated?: string
 }
@@ -127,12 +130,14 @@ export interface ClienteInput {
 export interface PropostaItem {
   id: string
   proposta_id: string
-  bom_id: string
+  bom_id?: string
   sku: string
   nome_produto: string
   quantidade: number
   preco_unitario: number
   custo_unitario: number
+  preco_direto?: boolean
+  unidade?: string
   created?: string
   updated?: string
 }

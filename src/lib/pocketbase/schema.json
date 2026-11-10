@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-10T00:00:14.509Z",
+  "generatedAt": "2026-11-10T00:19:13.441Z",
   "collections": [
     {
       "name": "users",
@@ -200,10 +200,10 @@
       "name": "boms",
       "type": "base",
       "apiRules": {
-        "list": "@request.auth.id != '' && @request.auth.perfil != 'vendedor'",
-        "view": "@request.auth.id != '' && @request.auth.perfil != 'vendedor'",
-        "create": "@request.auth.id != '' && @request.auth.perfil != 'vendedor'",
-        "update": "@request.auth.id != '' && @request.auth.perfil != 'vendedor'",
+        "list": "@request.auth.id != '' && (@request.auth.perfil != 'vendedor' || preco_direto = true)",
+        "view": "@request.auth.id != '' && (@request.auth.perfil != 'vendedor' || preco_direto = true)",
+        "create": "@request.auth.id != '' && (@request.auth.perfil != 'vendedor' || @request.body.preco_direto = true)",
+        "update": "@request.auth.id != '' && (@request.auth.perfil != 'vendedor' || preco_direto = true)",
         "delete": "@request.auth.id != '' && @request.auth.perfil != 'vendedor'"
       },
       "fields": [
@@ -256,6 +256,24 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "preco_direto",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "preco_venda",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "unidade",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_boms_sku ON boms (sku)"]
@@ -486,7 +504,7 @@
         {
           "name": "bom_id",
           "type": "relation",
-          "required": true,
+          "required": false,
           "system": false,
           "collectionRef": "boms"
         },
@@ -533,6 +551,18 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "preco_direto",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "unidade",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [

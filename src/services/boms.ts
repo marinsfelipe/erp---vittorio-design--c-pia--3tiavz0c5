@@ -17,6 +17,16 @@ export const bomsService = {
     return await pb.collection('boms').create<Bom>(data)
   },
 
+  async getBySku(sku: string): Promise<Bom | null> {
+    try {
+      return await pb
+        .collection('boms')
+        .getFirstListItem<Bom>(`sku = '${sku.trim().replace(/'/g, "\\'")}'`)
+    } catch {
+      return null
+    }
+  },
+
   async update(id: string, data: Partial<Omit<Bom, 'id' | 'created' | 'updated'>>): Promise<Bom> {
     return await pb.collection('boms').update<Bom>(id, data)
   },
