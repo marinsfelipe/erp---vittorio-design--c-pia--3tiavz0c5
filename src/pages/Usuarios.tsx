@@ -43,6 +43,11 @@ import {
   RefreshCw,
   ShieldCheck,
   UserCheck,
+  UserPlus,
+  Mail,
+  Lock,
+  User,
+  Shield,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/utils/formatters'
@@ -56,6 +61,14 @@ export default function UsuariosPage() {
   const [novaSenha, setNovaSenha] = useState('')
   const [resetOpen, setResetOpen] = useState(false)
   const [resetLoading, setResetLoading] = useState(false)
+
+  // Estado do Diálogo de Cadastro Direto ("Novo usuário")
+  const [novoUserOpen, setNovoUserOpen] = useState(false)
+  const [novoUserLoading, setNovoUserLoading] = useState(false)
+  const [novoNome, setNovoNome] = useState('')
+  const [novoEmail, setNovoEmail] = useState('')
+  const [novaSenhaInicial, setNovaSenhaInicial] = useState('')
+  const [novoPerfil, setNovoPerfil] = useState<'admin' | 'usuario' | 'vendedor'>('usuario')
 
   const loadData = async () => {
     setIsLoading(true)
@@ -159,6 +172,63 @@ export default function UsuariosPage() {
     }
   }
 
+  const handleCriarNovoUsuario = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const nomeTrim = novoNome.trim()
+    const emailTrim = novoEmail.trim()
+    const senhaTrim = novaSenhaInicial
+
+    if (!nomeTrim) {
+      toast.error('Informe o nome completo do usuário.')
+      return
+    }
+    if (!emailTrim) {
+      toast.error('Informe o e-mail do usuário.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailTrim)) {
+      toast.error('Informe um endereço de e-mail válido.')
+      return
+    }
+    if (!senhaTrim || senhaTrim.length < 8) {
+      toast.error('A senha deve conter no mínimo 8 caracteres.')
+      return
+    }
+
+    setNovoUserLoading(true)
+    try {
+      await usuariosService.criarUsuarioAdmin({
+        nome: nomeTrim,
+        email: emailTrim,
+        senha: senhaTrim,
+        perfil: novoPerfil,
+      })
+
+      const perfilLabel =
+        novoPerfil === 'admin'
+          ? 'Administrador'
+          : novoPerfil === 'vendedor'
+            ? 'Vendedor'
+            : 'Usuário'
+      toast.success(
+        `Usuário "${nomeTrim}" criado com sucesso como ${perfilLabel} e já está ativo para login imediato!`,
+      )
+
+      setNovoUserOpen(false)
+      setNovoNome('')
+      setNovoEmail('')
+      setNovaSenhaInicial('')
+      setNovoPerfil('usuario')
+      await loadData()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao criar novo usuário.')
+    } finally {
+      setNovoUserLoading(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
@@ -171,10 +241,26 @@ export default function UsuariosPage() {
             Aprovação administrativa, bloqueio/desbloqueio e gestão de senhas da equipe
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            className="gap-2 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+            onClick={() => {
+              setNovoNome('')
+              setNovoEmail('')
+              setNovaSenhaInicial('')
+              setNovoPerfil('usuario')
+              setNovoUserOpen(true)
+            }}
+          >
+            <UserPlus className="h-4 w-4" />
+            Novo usuário
+          </Button>
+          <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       {/* Destaque no topo para cadastros pendentes de aprovação */}
@@ -399,6 +485,123 @@ export default function UsuariosPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Diálogo do Administrador para Cadastro Direto de Novo Usuário */}
+      <Dialog open={novoUserOpen} onOpenChange={setNovoUserOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" />
+              Novo Usuário do Sistema
+            </DialogTitle>
+            <DialogDescription>
+              Cadastre um novo membro da equipe diretamente. O usuário é criado com status{' '}
+              <strong className="text-emerald-600 dark:text-emerald-400">Ativo / Aprovado</strong> e
+              pode realizar login imediatamente, sem passar pela fila de aprovação.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCriarNovoUsuario} className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="novo-user-nome">Nome Completo *</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="novo-user-nome"
+                  type="text"
+                  placeholder="Ex: Carlos Eduardo Silva"
+                  className="pl-9"
+                  value={novoNome}
+                  onChange={(e) => setNovoNome(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="novo-user-email">E-mail de Acesso *</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="novo-user-email"
+                  type="email"
+                  placeholder="usuario@vittoriodesign.com.br"
+                  className="pl-9"
+                  value={novoEmail}
+                  onChange={(e) => setNovoEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                E-mails duplicados são bloqueados automaticamente pelo sistema.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="novo-user-senha">Senha Inicial *</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="novo-user-senha"
+                  type="text"
+                  placeholder="Mínimo 8 caracteres (ex: Vittorio@2026)"
+                  className="pl-9"
+                  value={novaSenhaInicial}
+                  onChange={(e) => setNovaSenhaInicial(e.target.value)}
+                  required
+                  minLength={8}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Mínimo de 8 caracteres. O usuário poderá alterá-la no menu do perfil após o login.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="novo-user-perfil">Perfil de Acesso *</Label>
+              <div className="relative">
+                <Shield className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <select
+                  id="novo-user-perfil"
+                  value={novoPerfil}
+                  onChange={(e) =>
+                    setNovoPerfil(e.target.value as 'admin' | 'usuario' | 'vendedor')
+                  }
+                  className="w-full h-10 rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring font-medium"
+                >
+                  <option value="usuario">
+                    Usuário comum (Painel, Engenharia, Compras, Propostas)
+                  </option>
+                  <option value="vendedor">
+                    Vendedor (Pipeline, Propostas, Catálogo e Clientes)
+                  </option>
+                  <option value="admin">
+                    Administrador (Acesso total + Gestão de Usuários e Parâmetros)
+                  </option>
+                </select>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Define os módulos visíveis no menu e permissões comerciais.
+              </p>
+            </div>
+
+            <DialogFooter className="pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setNovoUserOpen(false)}
+                disabled={novoUserLoading}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={novoUserLoading} className="gap-2">
+                <UserPlus className="h-4 w-4" />
+                {novoUserLoading ? 'Criando usuário...' : 'Criar e Ativar Usuário'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Diálogo do Administrador para Redefinir Senha */}
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>

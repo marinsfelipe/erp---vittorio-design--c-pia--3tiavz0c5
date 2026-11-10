@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { VittorioLogo } from '@/components/VittorioLogo'
 
 export default function LoginPage() {
   const { login, register, requestPasswordReset, isLoading } = useAuth()
@@ -115,16 +116,16 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/30 to-background flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         {/* Identidade Visual */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20 mb-1">
-            <Snowflake className="h-8 w-8 animate-pulse" />
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <VittorioLogo surface="dark-card" size="md" className="h-20" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            ERP Refrigeração Comercial
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Gestão de Componentes, Engenharia de BOM e Precificação Industrial
-          </p>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Vittorio Design</h1>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground font-mono mt-0.5">
+              ERP de Equipamentos Comerciais Refrigerados
+            </p>
+          </div>
         </div>
 
         {/* Alerta de status pendente ou bloqueado */}

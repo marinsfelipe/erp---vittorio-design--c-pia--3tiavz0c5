@@ -47,6 +47,7 @@ import {
 import { useAuth } from '@/context/AuthContext'
 import { usuariosService } from '@/services/usuarios'
 import { toast } from 'sonner'
+import { VittorioLogo } from '@/components/VittorioLogo'
 
 export default function Layout() {
   const location = useLocation()
@@ -203,14 +204,17 @@ export default function Layout() {
     <div className="min-h-screen bg-background text-foreground flex flex-col md:flex-row">
       {/* Sidebar Desktop */}
       <aside className="hidden md:flex md:w-64 md:flex-col border-r border-border bg-card/60 backdrop-blur-sm">
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <Link to={homeLink} className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">
-              <Snowflake className="h-5 w-5" />
-            </div>
-            <div>
-              <span className="font-bold text-sm tracking-tight block">Vittorio Design</span>
-              <span className="text-[10px] text-muted-foreground uppercase font-mono tracking-wider block">
+        <div className="p-3 border-b border-border">
+          <Link
+            to={homeLink}
+            className="flex items-center gap-3 p-2 rounded-xl bg-neutral-950 border border-neutral-800 hover:border-neutral-700 transition-colors shadow-sm"
+          >
+            <VittorioLogo size="sm" className="h-9 w-auto" />
+            <div className="min-w-0 flex-1">
+              <span className="font-bold text-xs tracking-tight text-white block truncate">
+                Vittorio Design
+              </span>
+              <span className="text-[9px] text-amber-400/90 uppercase font-mono tracking-wider block truncate">
                 ERP Refrigeração
               </span>
             </div>
@@ -317,13 +321,16 @@ export default function Layout() {
       </aside>
 
       {/* Header Mobile */}
-      <header className="md:hidden border-b border-border bg-card/80 backdrop-blur-sm p-3 flex items-center justify-between sticky top-0 z-20">
-        <Link to={homeLink} className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center font-bold">
-            <Snowflake className="h-4 w-4" />
-          </div>
+      <header className="md:hidden border-b border-border bg-card/80 backdrop-blur-sm p-2.5 flex items-center justify-between sticky top-0 z-20">
+        <Link
+          to={homeLink}
+          className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg bg-neutral-950 border border-neutral-800"
+        >
+          <VittorioLogo size="sm" className="h-7 w-auto" />
           <div>
-            <span className="font-bold text-xs tracking-tight">Vittorio Design</span>
+            <span className="font-bold text-xs tracking-tight text-white block">
+              Vittorio Design
+            </span>
           </div>
         </Link>
         <div className="flex items-center gap-1">
