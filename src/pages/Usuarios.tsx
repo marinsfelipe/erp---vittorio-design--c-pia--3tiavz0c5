@@ -152,21 +152,26 @@ export default function UsuariosPage() {
 
   const handleRedefinirSenha = async () => {
     if (!resetTarget) return
-    if (!novaSenha.trim() || novaSenha.length < 8) {
-      toast.error('A senha temporária deve conter no mínimo 8 caracteres.')
+    const senhaTrim = novaSenha.trim()
+    if (!senhaTrim) {
+      toast.error('Informe a nova senha do usuário.')
+      return
+    }
+    if (senhaTrim.length < 8) {
+      toast.error('A nova senha deve conter no mínimo 8 caracteres.')
       return
     }
 
     setResetLoading(true)
     try {
-      await usuariosService.redefinirSenhaAdmin(resetTarget.user, novaSenha)
-      toast.success(`Senha temporária definida para ${resetTarget.nome}!`)
+      await usuariosService.redefinirSenhaAdmin(resetTarget.user, senhaTrim)
+      toast.success(`Senha de ${resetTarget.nome} redefinida com sucesso!`)
       setResetOpen(false)
       setNovaSenha('')
       setResetTarget(null)
     } catch (err: any) {
       console.error(err)
-      toast.error(err?.message || 'Erro ao redefinir senha.')
+      toast.error(err?.message || 'Erro ao redefinir senha do usuário.')
     } finally {
       setResetLoading(false)
     }
@@ -612,36 +617,49 @@ export default function UsuariosPage() {
               Redefinir Senha de Usuário
             </DialogTitle>
             <DialogDescription>
-              Defina uma senha temporária para <strong>{resetTarget?.nome}</strong> (
-              {resetTarget?.email}). O usuário poderá utilizá-la imediatamente para entrar no
-              sistema.
+              Defina uma nova senha para <strong>{resetTarget?.nome}</strong> ({resetTarget?.email}
+              ). O usuário poderá utilizá-la imediatamente para entrar no sistema.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 py-2">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleRedefinirSenha()
+            }}
+            className="space-y-3 py-2"
+          >
             <div className="space-y-1.5">
-              <Label htmlFor="nova-senha-temp">Nova Senha Temporária *</Label>
+              <Label htmlFor="nova-senha-temp">Nova Senha *</Label>
               <Input
                 id="nova-senha-temp"
                 type="text"
                 value={novaSenha}
                 onChange={(e) => setNovaSenha(e.target.value)}
                 placeholder="Mínimo 8 caracteres (ex: Vittorio@2026)"
+                autoFocus
+                required
+                minLength={8}
               />
               <p className="text-[11px] text-muted-foreground">
-                A senha é alterada de forma segura diretamente na autenticação do Skip Cloud.
+                Mínimo de 8 caracteres. A senha é atualizada de forma segura na autenticação do ERP.
               </p>
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setResetOpen(false)} disabled={resetLoading}>
-              Cancelar
-            </Button>
-            <Button onClick={handleRedefinirSenha} disabled={resetLoading}>
-              {resetLoading ? 'Salvando...' : 'Salvar Nova Senha'}
-            </Button>
-          </DialogFooter>
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setResetOpen(false)}
+                disabled={resetLoading}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={resetLoading}>
+                {resetLoading ? 'Salvando...' : 'Salvar Nova Senha'}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

@@ -69,13 +69,28 @@ export const usuariosService = {
 
   async redefinirSenhaAdmin(userId: string, novaSenhaTemporaria: string): Promise<void> {
     if (!userId) throw new Error('ID do usuário não fornecido.')
-    if (novaSenhaTemporaria.length < 8) {
-      throw new Error('A senha deve ter no mínimo 8 caracteres.')
+    const senhaTrim = (novaSenhaTemporaria || '').trim()
+    if (senhaTrim.length < 8) {
+      throw new Error('A senha deve conter no mínimo 8 caracteres.')
     }
-    await pb.collection('users').update(userId, {
-      password: novaSenhaTemporaria,
-      passwordConfirm: novaSenhaTemporaria,
-    })
+
+    try {
+      // Chama a rota personalizada backend/v1 executada com privilégio de servidor
+      await pb.send('/backend/v1/custom/admin/redefinir-senha', {
+        method: 'POST',
+        body: {
+          userId,
+          password: senhaTrim,
+        },
+      })
+    } catch (err: any) {
+      // Trata mensagens de erro retornadas pelo backend
+      const backendMsg = err?.response?.message || err?.data?.message || err?.message || ''
+      if (backendMsg) {
+        throw new Error(backendMsg)
+      }
+      throw new Error('Não foi possível redefinir a senha do usuário.')
+    }
   },
 
   /**

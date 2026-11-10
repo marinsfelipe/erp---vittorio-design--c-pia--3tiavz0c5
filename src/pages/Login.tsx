@@ -35,8 +35,8 @@ export default function LoginPage() {
   const stateBloqueio = (location.state as any)?.bloqueio as string | undefined
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login')
-  const [email, setEmail] = useState('marins.felipe@yahoo.com.br')
-  const [password, setPassword] = useState('Skip@Pass')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [name, setName] = useState('')
   const [resetSent, setResetSent] = useState(false)
@@ -313,19 +313,6 @@ export default function LoginPage() {
             </CardFooter>
           </form>
         </Card>
-
-        {/* Nota de credenciais pré-carregadas */}
-        <div className="text-center text-xs text-muted-foreground bg-muted/40 p-3 rounded-lg border border-border">
-          <div className="flex items-center justify-center gap-1.5 font-medium text-foreground mb-1">
-            <ShieldCheck className="h-4 w-4 text-primary" />
-            Primeiro Administrador
-          </div>
-          E-mail:{' '}
-          <code className="font-mono text-primary font-semibold">
-            marins.felipe@yahoo.com.br
-          </code> |
-          Senha: <code className="font-mono">Skip@Pass</code>
-        </div>
       </div>
     </div>
   )
