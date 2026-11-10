@@ -48,7 +48,11 @@ import { AplicarDescontoGeralDialog } from '@/components/propostas/AplicarDescon
 import { ResumoTotaisPropostaCard } from '@/components/propostas/ResumoTotaisPropostaCard'
 import { HistoricoAuditoriaDescontos } from '@/components/propostas/HistoricoAuditoriaDescontos'
 import { RecusarDescontoDialog } from '@/components/propostas/RecusarDescontoDialog'
-import { ShieldAlert, ShieldCheck } from 'lucide-react'
+import { ShieldAlert, ShieldCheck, Pencil, RotateCcw } from 'lucide-react'
+import { auditoriaPrecosService } from '@/services/auditoriaPrecos'
+import type { PropostaPrecoAuditoria } from '@/types/erp'
+import { EditarPrecoItemDialog } from '@/components/propostas/EditarPrecoItemDialog'
+import { HistoricoAuditoriaPrecos } from '@/components/propostas/HistoricoAuditoriaPrecos'
 
 const fluxo: PropostaStatus[] = ['rascunho', 'enviada', 'em_negociacao', 'vendida']
 const statusLabels: Record<PropostaStatus, string> = {
@@ -79,6 +83,15 @@ export default function PropostaDetalhePage() {
   const [recusarDescontoModalOpen, setRecusarDescontoModalOpen] = useState(false)
   const [isSubmittingDesconto, setIsSubmittingDesconto] = useState(false)
 
+  // Edição de Preço Unitário e Auditoria de Preço
+  const [editarPrecoModalOpen, setEditarPrecoModalOpen] = useState(false)
+  const [itemSelecionadoPreco, setItemSelecionadoPreco] = useState<PropostaItem | null>(null)
+  const [isSubmittingPreco, setIsSubmittingPreco] = useState(false)
+  const [auditoriasPreco, setAuditoriasPreco] = useState<PropostaPrecoAuditoria[]>([])
+  const [loadingAuditoriaPreco, setLoadingAuditoriaPreco] = useState(false)
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [inlinePriceText, setInlinePriceText] = useState<string>('')
+
   // Diálogo para marcar como perdida e gerar contrato
   const [motivoModalOpen, setMotivoModalOpen] = useState(false)
   const [motivoTexto, setMotivoTexto] = useState('')
@@ -87,15 +100,26 @@ export default function PropostaDetalhePage() {
   const [produtoAvulsoOpen, setProdutoAvulsoOpen] = useState(false)
 
   const carregarAuditorias = async (propId: string) => {
-    if (!isAdmin) return
-    setLoadingAuditoria(true)
+    if (isAdmin) {
+      setLoadingAuditoria(true)
+      try {
+        const logs = await auditoriaDescontosService.getByProposta(propId)
+        setAuditorias(logs)
+      } catch (err) {
+        console.error('Erro ao buscar auditoria de descontos:', err)
+      } finally {
+        setLoadingAuditoria(false)
+      }
+    }
+
+    setLoadingAuditoriaPreco(true)
     try {
-      const logs = await auditoriaDescontosService.getByProposta(propId)
-      setAuditorias(logs)
+      const precoLogs = await auditoriaPrecosService.getByProposta(propId)
+      setAuditoriasPreco(precoLogs)
     } catch (err) {
-      console.error('Erro ao buscar auditoria de descontos:', err)
+      console.error('Erro ao buscar auditoria de preços:', err)
     } finally {
-      setLoadingAuditoria(false)
+      setLoadingAuditoriaPreco(false)
     }
   }
 
@@ -111,9 +135,7 @@ export default function PropostaDetalhePage() {
       setProposta(p)
       setItens(its)
       setLimiteVendedor(limite)
-      if (isAdmin) {
-        carregarAuditorias(p.id)
-      }
+      carregarAuditorias(p.id)
     } catch (err: any) {
       console.error(err)
       toast.error('Erro ao carregar proposta.')
@@ -127,6 +149,126 @@ export default function PropostaDetalhePage() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isAdmin])
+
+  // Handlers de edição de preços
+  const handleAbrirEdicaoPreco = (item: PropostaItem) => {
+    if (proposta?.status === 'vendida' || proposta?.status === 'perdida') return
+    setItemSelecionadoPreco(item)
+    setEditarPrecoModalOpen(true)
+  }
+
+  const handleStartInlineEdit = (item: PropostaItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (proposta?.status === 'vendida' || proposta?.status === 'perdida') return
+    setEditingItemId(item.id)
+    setInlinePriceText(String(item.preco_unitario || ''))
+  }
+
+  const handleCancelInlineEdit = () => {
+    setEditingItemId(null)
+    setInlinePriceText('')
+  }
+
+  const handleSaveInlineEdit = async (item: PropostaItem) => {
+    if (!proposta) return
+    const num = Number(inlinePriceText.replace(',', '.'))
+    if (isNaN(num) || num < 0) {
+      toast.error('Informe um valor de preço válido.')
+      return
+    }
+
+    if (num === item.preco_unitario) {
+      setEditingItemId(null)
+      return
+    }
+
+    setIsSubmittingPreco(true)
+    try {
+      const resultado = await propostasService.atualizarPrecoUnitarioItem({
+        propostaId: proposta.id,
+        itemId: item.id,
+        novoPrecoUnitario: num,
+        justificativa: 'Edição direta na linha',
+        isVendedor,
+      })
+
+      setProposta(resultado.proposta)
+      setItens((prev) => prev.map((i) => (i.id === resultado.item.id ? resultado.item : i)))
+      setEditingItemId(null)
+      toast.success(`Preço unitário de ${item.sku} atualizado para ${formatBRL(num)}!`)
+
+      if (resultado.aguardandoAprovacao) {
+        toast.warning(
+          `Com o novo preço e descontos acima de ${limiteVendedor}%, a proposta requer aprovação do administrador.`,
+        )
+      }
+
+      carregarAuditorias(proposta.id)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao atualizar preço unitário.')
+    } finally {
+      setIsSubmittingPreco(false)
+    }
+  }
+
+  const handleConfirmarEdicaoPrecoModal = async (novoPreco: number, justificativa?: string) => {
+    if (!proposta || !itemSelecionadoPreco) return
+    setIsSubmittingPreco(true)
+    try {
+      const resultado = await propostasService.atualizarPrecoUnitarioItem({
+        propostaId: proposta.id,
+        itemId: itemSelecionadoPreco.id,
+        novoPrecoUnitario: novoPreco,
+        justificativa,
+        isVendedor,
+      })
+
+      setProposta(resultado.proposta)
+      setItens((prev) => prev.map((i) => (i.id === resultado.item.id ? resultado.item : i)))
+      setEditarPrecoModalOpen(false)
+      setItemSelecionadoPreco(null)
+      toast.success('Preço unitário atualizado com sucesso!')
+
+      if (resultado.aguardandoAprovacao) {
+        toast.warning(
+          `Com a alteração, a proposta requer liberação do administrador por exceder o limite de desconto (${limiteVendedor}%).`,
+        )
+      }
+
+      carregarAuditorias(proposta.id)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao atualizar preço.')
+    } finally {
+      setIsSubmittingPreco(false)
+    }
+  }
+
+  const handleRestaurarPrecoOriginalModal = async () => {
+    if (!proposta || !itemSelecionadoPreco) return
+    setIsSubmittingPreco(true)
+    try {
+      const resultado = await propostasService.restaurarPrecoOriginalItem({
+        propostaId: proposta.id,
+        itemId: itemSelecionadoPreco.id,
+        isVendedor,
+      })
+
+      setProposta(resultado.proposta)
+      setItens((prev) => prev.map((i) => (i.id === resultado.item.id ? resultado.item : i)))
+      setEditarPrecoModalOpen(false)
+      setItemSelecionadoPreco(null)
+      toast.success('Preço original de tabela restaurado com sucesso!')
+
+      carregarAuditorias(proposta.id)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao restaurar preço original.')
+    } finally {
+      setIsSubmittingPreco(false)
+    }
+  }
 
   // Handlers de aplicação de descontos
   const handleAbrirDescontoItem = (item: PropostaItem) => {
@@ -718,11 +860,19 @@ export default function PropostaDetalhePage() {
                   <TableHead className="font-semibold">SKU</TableHead>
                   <TableHead className="font-semibold">Produto</TableHead>
                   <TableHead className="text-right font-semibold">Qtd</TableHead>
-                  <TableHead className="text-right font-semibold">Preço Tabela</TableHead>
+                  <TableHead className="text-right font-semibold">
+                    <span
+                      className="flex items-center justify-end gap-1"
+                      title="Clique no preço de qualquer item para editar diretamente"
+                    >
+                      Preço Unitário
+                      <Pencil className="h-3 w-3 text-muted-foreground" />
+                    </span>
+                  </TableHead>
                   <TableHead className="text-right font-semibold">Desconto</TableHead>
                   <TableHead className="text-right font-semibold">Preço Líquido</TableHead>
                   <TableHead className="text-right font-semibold">Subtotal Líquido</TableHead>
-                  <TableHead className="text-center font-semibold w-24">Ações</TableHead>
+                  <TableHead className="text-center font-semibold w-28">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -768,10 +918,119 @@ export default function PropostaDetalhePage() {
                       <TableCell className="text-right font-mono text-sm">
                         {it.quantidade} {it.unidade || ''}
                       </TableCell>
-                      <TableCell className="text-right font-mono text-sm text-muted-foreground">
-                        <span className={temDesconto ? 'line-through text-xs' : ''}>
-                          {formatBRL(it.preco_unitario)}
-                        </span>
+                      <TableCell className="text-right font-mono text-sm">
+                        {editingItemId === it.id ? (
+                          <div
+                            className="inline-flex items-center justify-end gap-1.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <span className="text-xs text-muted-foreground">R$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={inlinePriceText}
+                              onChange={(e) => setInlinePriceText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  handleSaveInlineEdit(it)
+                                } else if (e.key === 'Escape') {
+                                  e.preventDefault()
+                                  handleCancelInlineEdit()
+                                }
+                              }}
+                              autoFocus
+                              className="w-24 px-2 py-0.5 text-right font-mono text-xs font-bold bg-background border border-primary rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+                              disabled={isSubmittingPreco}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleSaveInlineEdit(it)}
+                              disabled={isSubmittingPreco}
+                              className="h-6 w-6 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                              title="Salvar (Enter)"
+                            >
+                              ✓
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleCancelInlineEdit}
+                              disabled={isSubmittingPreco}
+                              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                              title="Cancelar (Esc)"
+                            >
+                              ✕
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="inline-flex flex-col items-end">
+                            <button
+                              type="button"
+                              onClick={(e) => handleStartInlineEdit(it, e)}
+                              disabled={
+                                proposta.status === 'vendida' || proposta.status === 'perdida'
+                              }
+                              className={`group inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors ${
+                                proposta.status !== 'vendida' && proposta.status !== 'perdida'
+                                  ? 'hover:bg-muted/70 cursor-pointer'
+                                  : 'cursor-default'
+                              }`}
+                              title={
+                                proposta.status !== 'vendida' && proposta.status !== 'perdida'
+                                  ? 'Clique para editar o preço unitário diretamente na linha'
+                                  : undefined
+                              }
+                            >
+                              <span
+                                className={`font-mono text-sm ${
+                                  temDesconto
+                                    ? 'line-through text-xs text-muted-foreground'
+                                    : 'font-medium text-foreground'
+                                }`}
+                              >
+                                {formatBRL(it.preco_unitario)}
+                              </span>
+
+                              {/* Marcação visual de preço editado (ícone de lápis com destaque) */}
+                              {it.preco_editado ||
+                              (it.preco_original_tabela &&
+                                it.preco_unitario !== it.preco_original_tabela) ? (
+                                <Badge
+                                  variant="outline"
+                                  className="h-4 px-1 text-[10px] gap-0.5 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300"
+                                  title={`Preço editado diretamente. Original da tabela: ${formatBRL(
+                                    it.preco_original_tabela ?? it.preco_unitario,
+                                  )}`}
+                                >
+                                  <Pencil className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+                                  <span className="hidden sm:inline">editado</span>
+                                </Badge>
+                              ) : (
+                                proposta.status !== 'vendida' &&
+                                proposta.status !== 'perdida' && (
+                                  <Pencil className="h-3 w-3 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+                                )
+                              )}
+                            </button>
+
+                            {/* Se o preço foi editado, exibe discretamente a referência do valor original de tabela */}
+                            {Boolean(
+                              it.preco_editado ||
+                              (it.preco_original_tabela &&
+                                it.preco_unitario !== it.preco_original_tabela),
+                            ) &&
+                              it.preco_original_tabela !== undefined && (
+                                <span className="text-[10px] text-muted-foreground font-mono pr-2">
+                                  Tabela: {formatBRL(it.preco_original_tabela)}
+                                </span>
+                              )}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-mono text-xs">
                         {temDesconto ? (
@@ -796,17 +1055,33 @@ export default function PropostaDetalhePage() {
                         {formatBRL(subtotalLiquido)}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleAbrirDescontoItem(it)}
-                          disabled={proposta.status === 'vendida' || proposta.status === 'perdida'}
-                          className="h-8 px-2 text-xs gap-1 text-primary hover:text-primary hover:bg-primary/10"
-                          title="Aplicar ou alterar desconto deste item"
-                        >
-                          <Tag className="h-3.5 w-3.5" />
-                          {temDesconto ? 'Editar' : 'Desconto'}
-                        </Button>
+                        <div className="flex items-center justify-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAbrirEdicaoPreco(it)}
+                            disabled={
+                              proposta.status === 'vendida' || proposta.status === 'perdida'
+                            }
+                            className="h-8 w-8 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            title="Editar preço e histórico"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAbrirDescontoItem(it)}
+                            disabled={
+                              proposta.status === 'vendida' || proposta.status === 'perdida'
+                            }
+                            className="h-8 px-2 text-xs gap-1 text-primary hover:text-primary hover:bg-primary/10"
+                            title="Aplicar ou alterar desconto deste item"
+                          >
+                            <Tag className="h-3.5 w-3.5" />
+                            {temDesconto ? 'Desc.' : 'Desc.'}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -828,6 +1103,9 @@ export default function PropostaDetalhePage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Histórico de Edições de Preços (Visível para Vendedor e Admin) */}
+      <HistoricoAuditoriaPrecos registros={auditoriasPreco} isLoading={loadingAuditoriaPreco} />
 
       {/* Histórico de Auditoria de Descontos (Visível Exclusivamente para Administrador) */}
       {isAdmin && (
@@ -891,6 +1169,25 @@ export default function PropostaDetalhePage() {
         onConfirm={handleRecusarDesconto}
         isSubmitting={isSaving}
         propostaNumero={proposta.numero}
+      />
+
+      {/* Modal de Edição Detalhada de Preço do Item */}
+      <EditarPrecoItemDialog
+        open={editarPrecoModalOpen}
+        onOpenChange={(open) => {
+          setEditarPrecoModalOpen(open)
+          if (!open) setItemSelecionadoPreco(null)
+        }}
+        item={itemSelecionadoPreco}
+        onConfirm={handleConfirmarEdicaoPrecoModal}
+        onRestaurar={
+          itemSelecionadoPreco?.preco_editado ||
+          (itemSelecionadoPreco?.preco_original_tabela &&
+            itemSelecionadoPreco?.preco_unitario !== itemSelecionadoPreco?.preco_original_tabela)
+            ? handleRestaurarPrecoOriginalModal
+            : undefined
+        }
+        isSubmitting={isSubmittingPreco}
       />
     </div>
   )

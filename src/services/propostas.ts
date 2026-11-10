@@ -11,6 +11,7 @@ import type {
 } from '@/types/erp'
 import { calcularDescontoItem, calcularTotaisProposta } from '@/utils/descontos'
 import { auditoriaDescontosService } from '@/services/auditoriaDescontos'
+import { auditoriaPrecosService } from '@/services/auditoriaPrecos'
 import { parametrosService } from '@/services/parametros'
 
 /** Snapshot estático dos dados do BOM usados na proposta (imune a mudanças futuras). */
@@ -134,6 +135,8 @@ export const propostasService = {
         custo_unitario: it.custo_unitario,
         preco_direto: it.preco_direto ?? false,
         unidade: it.unidade || 'UN',
+        preco_original_tabela: it.preco_unitario,
+        preco_editado: false,
       })
     }
     return proposta
@@ -150,6 +153,8 @@ export const propostasService = {
       custo_unitario: item.custo_unitario,
       preco_direto: item.preco_direto ?? false,
       unidade: item.unidade || 'UN',
+      preco_original_tabela: item.preco_unitario,
+      preco_editado: false,
       preco_liquido: item.preco_unitario,
       total_desconto: 0,
     })
@@ -170,6 +175,137 @@ export const propostasService = {
       total_desconto_itens: totais.totalDescontoItens,
       total_desconto_geral: totais.totalDescontoGeral,
       valor_total: totais.totalFinal,
+    })
+  },
+
+  /**
+   * Atualiza diretamente o preço unitário de um item da proposta (Preços Editáveis).
+   * Recalcula os descontos do item (mantendo percentual ou recalculando líquido) e
+   * os totais gerais da proposta. Registra auditoria com o preço original da tabela.
+   */
+  async atualizarPrecoUnitarioItem(params: {
+    propostaId: string
+    itemId: string
+    novoPrecoUnitario: number
+    justificativa?: string
+    isVendedor?: boolean
+  }): Promise<{ proposta: Proposta; item: PropostaItem; aguardandoAprovacao: boolean }> {
+    const { propostaId, itemId, novoPrecoUnitario, justificativa, isVendedor } = params
+    const itemAtual = await pb.collection('proposta_items').getOne<PropostaItem>(itemId)
+    const propostaAtual = await this.getById(propostaId)
+    const itensAtuais = await this.getItems(propostaId)
+
+    const precoAntigo = Number(itemAtual.preco_unitario) || 0
+    const precoNovo = Math.max(0, Number(novoPrecoUnitario) || 0)
+
+    // Se não tiver preço original gravado, o preço original é o preço_unitario anterior
+    const precoOriginalTabela =
+      itemAtual.preco_original_tabela !== undefined &&
+      itemAtual.preco_original_tabela !== null &&
+      Number(itemAtual.preco_original_tabela) > 0
+        ? Number(itemAtual.preco_original_tabela)
+        : precoAntigo
+
+    const authUser = pb.authStore.record
+    const agoraIso = new Date().toISOString()
+
+    // Recalcula desconto com a nova base de preço
+    const calc = calcularDescontoItem({
+      precoUnitario: precoNovo,
+      quantidade: itemAtual.quantidade,
+      descontoTipo: itemAtual.desconto_tipo,
+      descontoValor: itemAtual.desconto_valor,
+    })
+
+    // 1. Atualiza o item da proposta
+    const itemAtualizado = await pb.collection('proposta_items').update<PropostaItem>(itemId, {
+      preco_unitario: precoNovo,
+      preco_original_tabela: precoOriginalTabela,
+      preco_editado: true,
+      preco_editado_por: authUser?.id || '',
+      preco_editado_em: agoraIso,
+      preco_liquido: calc.precoLiquido,
+      total_desconto: calc.totalDescontoItem,
+    })
+
+    // 2. Registrar no histórico de auditoria de preços
+    await auditoriaPrecosService.registrar({
+      proposta: propostaId,
+      item: itemId,
+      item_sku: itemAtual.sku,
+      item_nome: itemAtual.nome_produto,
+      preco_anterior: precoAntigo,
+      preco_novo: precoNovo,
+      preco_original_tabela: precoOriginalTabela,
+      usuario: authUser?.id || '',
+      usuario_nome: authUser?.name || authUser?.email || 'Usuário',
+      usuario_email: authUser?.email || '',
+      justificativa: justificativa || 'Preço unitário editado diretamente na linha da proposta',
+    })
+
+    // 3. Recalcular totais da proposta
+    const itensAtualizados = itensAtuais.map((it) => (it.id === itemId ? itemAtualizado : it))
+    const totais = calcularTotaisProposta(
+      itensAtualizados,
+      propostaAtual.desconto_tipo,
+      propostaAtual.desconto_valor,
+    )
+
+    let novoStatus = propostaAtual.status
+    let statusAnterior = propostaAtual.status_anterior_aprovacao
+    let aguardandoAprovacao = false
+
+    if (isVendedor) {
+      const limite = await parametrosService.getLimiteDescontoVendedor()
+      if (
+        totais.percentualDescontoTotal > limite &&
+        propostaAtual.status !== 'aguardando_aprovacao'
+      ) {
+        statusAnterior = propostaAtual.status
+        novoStatus = 'aguardando_aprovacao'
+        aguardandoAprovacao = true
+      }
+    }
+
+    const propostaAtualizada = await pb.collection('propostas').update<Proposta>(propostaId, {
+      subtotal: totais.subtotal,
+      total_desconto_itens: totais.totalDescontoItens,
+      total_desconto_geral: totais.totalDescontoGeral,
+      valor_total: totais.totalFinal,
+      status: novoStatus,
+      ...(statusAnterior ? { status_anterior_aprovacao: statusAnterior } : {}),
+    })
+
+    return {
+      proposta: propostaAtualizada,
+      item: itemAtualizado,
+      aguardandoAprovacao,
+    }
+  },
+
+  /**
+   * Restaura o preço original da tabela para um item
+   */
+  async restaurarPrecoOriginalItem(params: {
+    propostaId: string
+    itemId: string
+    isVendedor?: boolean
+  }): Promise<{ proposta: Proposta; item: PropostaItem; aguardandoAprovacao: boolean }> {
+    const { propostaId, itemId, isVendedor } = params
+    const itemAtual = await pb.collection('proposta_items').getOne<PropostaItem>(itemId)
+    const precoOriginal =
+      itemAtual.preco_original_tabela !== undefined &&
+      itemAtual.preco_original_tabela !== null &&
+      Number(itemAtual.preco_original_tabela) > 0
+        ? Number(itemAtual.preco_original_tabela)
+        : Number(itemAtual.preco_unitario)
+
+    return await this.atualizarPrecoUnitarioItem({
+      propostaId,
+      itemId,
+      novoPrecoUnitario: precoOriginal,
+      justificativa: 'Preço restaurado para o valor original da tabela',
+      isVendedor,
     })
   },
 

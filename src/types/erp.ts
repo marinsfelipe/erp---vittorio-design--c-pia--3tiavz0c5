@@ -174,8 +174,18 @@ export interface PropostaItem {
   total_desconto?: number
   desconto_aplicado_por?: string
   desconto_aplicado_em?: string
+  // Preço editável e histórico
+  preco_original_tabela?: number
+  preco_editado?: boolean
+  preco_editado_por?: string
+  preco_editado_em?: string
   expand?: {
     desconto_aplicado_por?: {
+      id: string
+      name?: string
+      email?: string
+    }
+    preco_editado_por?: {
       id: string
       name?: string
       email?: string
@@ -183,6 +193,35 @@ export interface PropostaItem {
   }
   created?: string
   updated?: string
+}
+
+export interface PropostaPrecoAuditoria {
+  id: string
+  proposta: string
+  item: string
+  item_sku?: string
+  item_nome?: string
+  preco_anterior: number
+  preco_novo: number
+  preco_original_tabela?: number
+  usuario: string
+  usuario_nome?: string
+  usuario_email?: string
+  justificativa?: string
+  created?: string
+  updated?: string
+  expand?: {
+    usuario?: {
+      id: string
+      name?: string
+      email?: string
+    }
+    proposta?: {
+      id: string
+      numero?: string
+    }
+    item?: PropostaItem
+  }
 }
 
 export interface PropostaDescontoAuditoria {

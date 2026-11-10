@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-10T00:52:52.222Z",
+  "generatedAt": "2026-11-10T00:57:23.969Z",
   "collections": [
     {
       "name": "users",
@@ -684,6 +684,31 @@
           "type": "text",
           "required": false,
           "system": false
+        },
+        {
+          "name": "preco_original_tabela",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "preco_editado",
+          "type": "bool",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "preco_editado_por",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "preco_editado_em",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -1342,6 +1367,19 @@
         "list": null,
         "view": null,
         "create": null,
+        "update": null,
+        "delete": "@request.auth.id != '' && @request.auth.perfil = 'admin'"
+      },
+      "fields": [],
+      "indexes": []
+    },
+    {
+      "name": "proposta_preco_auditoria",
+      "type": "base",
+      "apiRules": {
+        "list": null,
+        "view": null,
+        "create": "@request.auth.id != ''",
         "update": null,
         "delete": "@request.auth.id != '' && @request.auth.perfil = 'admin'"
       },
