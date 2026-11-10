@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft, Save, Calculator, FolderTree, Search, Check } from 'lucide-react'
 import { toast } from 'sonner'
+import { CategoriaProdutoSelector } from '@/components/bom/CategoriaProdutoSelector'
 
 export default function BomEditorPage() {
   const { id } = useParams<{ id: string }>()
@@ -62,6 +63,7 @@ export default function BomEditorPage() {
   const [newItemQuantity, setNewItemQuantity] = useState<string>('1')
   const [fabCodigo, setFabCodigo] = useState('')
   const [fabDescricao, setFabDescricao] = useState('')
+  const [fabCategoria, setFabCategoria] = useState('Produção Interna')
 
   const loadData = async () => {
     if (!id) return
@@ -137,6 +139,7 @@ export default function BomEditorPage() {
     setNewItemQuantity('1')
     setFabCodigo('')
     setFabDescricao('')
+    setFabCategoria('Produção Interna')
     setIsAddOpen(true)
   }
 
@@ -222,7 +225,7 @@ export default function BomEditorPage() {
         ordem: filhosDe(parentNode.item.id).length + 1,
         codigo,
         descricao,
-        categoria: 'Produção Interna',
+        categoria: fabCategoria.trim() || 'Produção Interna',
         unidade: 'UN',
         quantidade: qty,
         custo_unitario: 0,
@@ -512,6 +515,13 @@ export default function BomEditorPage() {
                     />
                   </div>
                 </div>
+
+                <CategoriaProdutoSelector
+                  id="fab-categoria"
+                  label="Categoria do Item Fabricado"
+                  value={fabCategoria}
+                  onChange={setFabCategoria}
+                />
               </div>
             )}
           </div>

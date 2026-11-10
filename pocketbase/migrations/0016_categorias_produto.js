@@ -21,9 +21,7 @@ migrate(
           { name: 'created', type: 'autodate', onCreate: true, onUpdate: false },
           { name: 'updated', type: 'autodate', onCreate: true, onUpdate: true },
         ],
-        indexes: [
-          'CREATE UNIQUE INDEX idx_categorias_produto_nome ON categorias_produto (nome)',
-        ],
+        indexes: ['CREATE UNIQUE INDEX idx_categorias_produto_nome ON categorias_produto (nome)'],
       })
       app.save(categorias)
     }

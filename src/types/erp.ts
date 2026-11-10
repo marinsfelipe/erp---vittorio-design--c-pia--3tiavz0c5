@@ -29,6 +29,15 @@ export interface Componente {
   updated?: string
 }
 
+export interface CategoriaProduto {
+  id: string
+  nome: string
+  descricao?: string
+  ativo?: boolean
+  created?: string
+  updated?: string
+}
+
 export interface Parametro {
   id: string
   chave: string

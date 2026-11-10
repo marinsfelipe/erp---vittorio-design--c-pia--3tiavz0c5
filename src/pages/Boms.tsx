@@ -33,6 +33,7 @@ import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 import { Upload } from 'lucide-react'
 import ImportarBomDialog from '@/components/bom/ImportarBomDialog'
+import { CategoriaProdutoSelector } from '@/components/bom/CategoriaProdutoSelector'
 
 interface BomWithStats extends Bom {
   itemCount: number
@@ -230,12 +231,19 @@ export default function BomsPage() {
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
-                  <Badge
-                    variant="outline"
-                    className="font-mono text-xs font-bold text-primary bg-primary/5"
-                  >
-                    {bom.sku}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Badge
+                      variant="outline"
+                      className="font-mono text-xs font-bold text-primary bg-primary/5"
+                    >
+                      {bom.sku}
+                    </Badge>
+                    {bom.categoria && (
+                      <Badge variant="secondary" className="text-[10px] font-medium">
+                        {bom.categoria}
+                      </Badge>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
@@ -324,7 +332,7 @@ export default function BomsPage() {
           </DialogHeader>
 
           <form onSubmit={handleCreateBom} className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label htmlFor="sku">SKU do Produto *</Label>
                 <Input
@@ -337,15 +345,12 @@ export default function BomsPage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="categoria">Categoria do Equipamento</Label>
-                <Input
-                  id="categoria"
-                  placeholder="Ex: Balcões, Vitrines..."
-                  value={formData.categoria}
-                  onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
-                />
-              </div>
+              <CategoriaProdutoSelector
+                id="categoria"
+                label="Categoria do Equipamento"
+                value={formData.categoria}
+                onChange={(cat) => setFormData({ ...formData, categoria: cat })}
+              />
             </div>
 
             <div className="space-y-1.5">
