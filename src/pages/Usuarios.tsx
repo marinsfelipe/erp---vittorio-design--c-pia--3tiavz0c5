@@ -203,12 +203,23 @@ export default function UsuariosPage() {
 
     setNovoUserLoading(true)
     try {
-      await usuariosService.criarUsuarioAdmin({
+      const criado = await usuariosService.criarUsuarioAdmin({
         nome: nomeTrim,
         email: emailTrim,
         senha: senhaTrim,
         perfil: novoPerfil,
       })
+
+      // Adiciona imediatamente ao estado da lista local para feedback instantâneo
+      if (criado?.perfil) {
+        setLista((prev) => {
+          const jaExiste = prev.some(
+            (item) => item.id === criado.perfil.id || item.user === criado.user?.id,
+          )
+          if (jaExiste) return prev
+          return [criado.perfil, ...prev]
+        })
+      }
 
       const perfilLabel =
         novoPerfil === 'admin'
