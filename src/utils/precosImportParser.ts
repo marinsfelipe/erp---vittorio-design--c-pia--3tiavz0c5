@@ -94,17 +94,26 @@ function normalizarChaves(row: Record<string, unknown>): Record<string, unknown>
 }
 
 /**
- * Procura a linha cujo conteúdo pareça um cabeçalho da tabela de preços: deve
+ * Procura a linha cujo CONTEÚDO pareça um cabeçalho da tabela de preços: deve
  * mencionar "código" (ou SKU) E "preço"/"valor" — ou "código" + "descrição".
+ * Recebe os textos NORMALIZADOS das células da linha (não as chaves de um
+ * objeto), pois a detecção roda sobre linhas cruas lidas com header:1 — onde as
+ * chaves de um objeto seriam apenas índices de coluna ("0", "1", ...).
  * Isso tolera título, linha em branco ou células mescladas antes do cabeçalho.
  */
-const pareceCabecalho = (row: Record<string, unknown>): boolean => {
-  const chaves = Object.keys(row)
-  const temCodigo = chaves.some((k) => k.includes('codigo') || k.includes('sku'))
-  const temPreco = chaves.some((k) => k.includes('preco') || k.includes('valor'))
-  const temDescricao = chaves.some((k) => k.includes('descricao') || k.includes('produto'))
+const pareceCabecalho = (textos: string[]): boolean => {
+  const temCodigo = textos.some((t) => t.includes('codigo') || t.includes('sku'))
+  const temPreco = textos.some((t) => t.includes('preco') || t.includes('valor'))
+  const temDescricao = textos.some((t) => t.includes('descricao') || t.includes('produto'))
   return temCodigo && (temPreco || temDescricao)
 }
+
+/** Textos normalizados e não vazios de uma linha crua (array de células). */
+const textosDaLinha = (linha: unknown[] | null | undefined): string[] =>
+  (linha || [])
+    .filter((v) => v !== null && v !== undefined && String(v).trim() !== '')
+    .map((v) => normalizarCabecalho(String(v)))
+    .filter((t) => t !== '')
 
 /** Lê um arquivo .xlsx/.xls/.csv e devolve as linhas com chaves normalizadas. */
 export async function lerPlanilhaPrecos(file: File): Promise<Record<string, unknown>[]> {
@@ -119,26 +128,24 @@ export async function lerPlanilhaPrecos(file: File): Promise<Record<string, unkn
       sheetName = wb.SheetNames.find((n) => {
         const ws = wb.Sheets[n]
         if (!ws) return false
-        const linhas = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
-        return linhas.some((l) => pareceCabecalho(normalizarChaves(l)))
+        const rawAba = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+        return rawAba.some((r) => pareceCabecalho(textosDaLinha(r as unknown[])))
       })
     }
     const sheet = (sheetName && wb.Sheets[sheetName]) || wb.Sheets[wb.SheetNames[0]]
+    if (!sheet) {
+      throw new Error('A planilha não possui nenhuma aba com conteúdo.')
+    }
 
     // 2. Linhas cruas COM cabeçalho incluído (header:1), para achar a linha do
-    //    cabeçalho mesmo que não seja a primeira da aba
+    //    cabeçalho mesmo que não seja a primeira da aba. A detecção compara o
+    //    TEXTO das células (não índices de coluna).
     const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' })
-    let idxCabecalho = -1
-    for (let i = 0; i < raw.length; i++) {
-      const linha = (raw[i] as unknown[]) || []
-      const obj = normalizarChaves(Object.fromEntries(linha.map((v, c) => [c, v]))) as Record<
-        string,
-        unknown
-      >
-      if (pareceCabecalho(obj)) {
-        idxCabecalho = i
-        break
-      }
+    const idxCabecalho = raw.findIndex((r) => pareceCabecalho(textosDaLinha(r as unknown[])))
+    if (idxCabecalho < 0) {
+      throw new Error(
+        'Não foi possível localizar a linha de cabeçalho na planilha. Verifique se o arquivo contém as colunas "Código do Produto", "Descrição" e "Preço Final (R$)".',
+      )
     }
 
     // 3. Monta objetos usando a linha detectada como cabeçalho
@@ -268,8 +275,9 @@ export function mapearLinhasPrecos(rows: Record<string, unknown>[]): LinhaPrecos
 
     // Linha totalmente vazia: pular silenciosamente
     if (!codigo && !descricao && !temPreco && !categoria && !fornecedor && !observacao) continue
-    // Linha só com categoria/fornecedor/observação (sem código nem preço): também pular
-    if (!codigo && !temPreco) continue
+    // Demais linhas seguem SEMPRE para a validação linha a linha: se uma coluna
+    // esperada (código, preço...) não for encontrada, cada linha é mantida e o
+    // problema correspondente é relatado no preview — nunca "nenhuma linha".
 
     out.push({
       linha: i + 2, // linha 1 = cabeçalho
