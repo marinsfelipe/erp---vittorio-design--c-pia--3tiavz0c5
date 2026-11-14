@@ -69,20 +69,41 @@ export interface ResultadoImportacaoPrecos {
 // Leitura do arquivo (.xlsx / .csv)
 // ---------------------------------------------------------------------------
 
-const normalizar = (s: string) =>
-  s
+/**
+ * Normaliza o texto de um cabeçalho para usar como chave: minúsculas, sem
+ * acentos, sem pontuação, espaços colapsados para um único sublinhado.
+ * "Código do Produto" / "código  do produto " → "codigo_do_produto";
+ * "Preço Final (R$)" → "preco_final"; "Cód." → "cod".
+ */
+export function normalizarCabecalho(h: string): string {
+  return h
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '_')
+    .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
+}
 
 function normalizarChaves(row: Record<string, unknown>): Record<string, unknown> {
   const obj: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(row)) {
-    obj[normalizar(k)] = v
+    obj[normalizarCabecalho(k)] = v
   }
   return obj
+}
+
+/**
+ * Procura a linha cujo conteúdo pareça um cabeçalho da tabela de preços: deve
+ * mencionar "código" (ou SKU) E "preço"/"valor" — ou "código" + "descrição".
+ * Isso tolera título, linha em branco ou células mescladas antes do cabeçalho.
+ */
+const pareceCabecalho = (row: Record<string, unknown>): boolean => {
+  const chaves = Object.keys(row)
+  const temCodigo = chaves.some((k) => k.includes('codigo') || k.includes('sku'))
+  const temPreco = chaves.some((k) => k.includes('preco') || k.includes('valor'))
+  const temDescricao = chaves.some((k) => k.includes('descricao') || k.includes('produto'))
+  return temCodigo && (temPreco || temDescricao)
 }
 
 /** Lê um arquivo .xlsx/.xls/.csv e devolve as linhas com chaves normalizadas. */
@@ -91,9 +112,47 @@ export async function lerPlanilhaPrecos(file: File): Promise<Record<string, unkn
   if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) {
     const buffer = await file.arrayBuffer()
     const wb = XLSX.read(buffer, { type: 'array' })
-    const sheet = wb.Sheets[wb.SheetNames[0]]
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
-    return rows.map(normalizarChaves)
+
+    // 1. Aba certa: "Importacao Precos", senão a primeira que pareça cabeçalho
+    let sheetName = wb.SheetNames.find((n) => normalizarCabecalho(n).includes('importacao_precos'))
+    if (!sheetName) {
+      sheetName = wb.SheetNames.find((n) => {
+        const ws = wb.Sheets[n]
+        if (!ws) return false
+        const linhas = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' })
+        return linhas.some((l) => pareceCabecalho(normalizarChaves(l)))
+      })
+    }
+    const sheet = (sheetName && wb.Sheets[sheetName]) || wb.Sheets[wb.SheetNames[0]]
+
+    // 2. Linhas cruas COM cabeçalho incluído (header:1), para achar a linha do
+    //    cabeçalho mesmo que não seja a primeira da aba
+    const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' })
+    let idxCabecalho = -1
+    for (let i = 0; i < raw.length; i++) {
+      const linha = (raw[i] as unknown[]) || []
+      const obj = normalizarChaves(Object.fromEntries(linha.map((v, c) => [c, v]))) as Record<
+        string,
+        unknown
+      >
+      if (pareceCabecalho(obj)) {
+        idxCabecalho = i
+        break
+      }
+    }
+
+    // 3. Monta objetos usando a linha detectada como cabeçalho
+    const headers = idxCabecalho >= 0 ? (raw[idxCabecalho] as unknown[]) : []
+    const dataRows = idxCabecalho >= 0 ? raw.slice(idxCabecalho + 1) : []
+    return dataRows.map((r) => {
+      const obj: Record<string, unknown> = {}
+      const linha = (r as unknown[]) || []
+      headers.forEach((h, c) => {
+        if (h === null || h === undefined || String(h).trim() === '') return
+        obj[normalizarCabecalho(String(h))] = linha[c] ?? ''
+      })
+      return obj
+    })
   }
   // CSV: vírgula, ponto-e-vírgula ou tabulação
   const text = await file.text()
@@ -101,7 +160,7 @@ export async function lerPlanilhaPrecos(file: File): Promise<Record<string, unkn
   return rows.map((r) => {
     const obj: Record<string, unknown> = {}
     for (const h of headers) {
-      obj[normalizar(h)] = (r as Record<string, string>)[h]
+      obj[normalizarCabecalho(h)] = (r as Record<string, string>)[h]
     }
     return obj
   })
@@ -141,31 +200,66 @@ export const parsePrecoBr = (raw: string | number): number => {
   return isNaN(n) ? NaN : n
 }
 
+/**
+ * Busca o valor de um campo na linha crua por apelidos normalizados; se nenhum
+ * apelido casar exatamente, cai para matching flexível (prefixo/contém), o que
+ * tolera variações como "Cód.", "SKU do item", "Preço Final s/ ICMS" etc.
+ */
+function criarBuscador(row: Record<string, unknown>) {
+  const chaves = Object.keys(row)
+  const buscar = (...apelidos: string[]): string => {
+    for (const a of apelidos) {
+      const v = row[a]
+      if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim()
+    }
+    for (const a of apelidos) {
+      const k = chaves.find((c) => c.startsWith(a) || c.includes(a))
+      if (k) {
+        const v = row[k]
+        if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim()
+      }
+    }
+    return ''
+  }
+  return buscar
+}
+
 /** Mapeia as linhas cruas para LinhaPrecos. */
 export function mapearLinhasPrecos(rows: Record<string, unknown>[]): LinhaPrecos[] {
   const out: LinhaPrecos[] = []
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
-    const buscar = (...nomes: string[]): string => {
-      for (const nome of nomes) {
-        const v = row[nome]
-        if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim()
-      }
-      return ''
-    }
+    const buscar = criarBuscador(row)
 
-    const codigo = buscar('codigo_produto', 'codigo', 'cod', 'sku', 'code', 'referencia')
-    const descricao = buscar('descricao', 'descricao_produto', 'produto', 'nome', 'item')
+    const codigo = buscar(
+      'codigo_produto',
+      'codigo',
+      'codigo_do_produto',
+      'cod_produto',
+      'cod',
+      'sku',
+      'code',
+      'referencia',
+      'sku_produto',
+    )
+    const descricao = buscar(
+      'descricao',
+      'descricao_produto',
+      'produto',
+      'nome',
+      'item',
+      'desc',
+      'description',
+    )
     const unidade = (buscar('unidade', 'und', 'un', 'unit') || 'UN').toUpperCase()
     const categoria = buscar('categoria', 'category', 'grupo') || 'Geral'
     const precoBruto = buscar(
       'preco_final',
-      'preco_final_rs',
-      'preco_final_r',
       'preco',
       'valor',
       'preco_venda',
       'price',
+      'preco_unitario',
     )
     const temPreco = precoBruto !== ''
     const precoFinal = temPreco ? parsePrecoBr(precoBruto) : 0
@@ -173,7 +267,9 @@ export function mapearLinhasPrecos(rows: Record<string, unknown>[]): LinhaPrecos
     const observacao = buscar('observacao', 'obs', 'observacoes', 'nota')
 
     // Linha totalmente vazia: pular silenciosamente
-    if (!codigo && !descricao && !temPreco) continue
+    if (!codigo && !descricao && !temPreco && !categoria && !fornecedor && !observacao) continue
+    // Linha só com categoria/fornecedor/observação (sem código nem preço): também pular
+    if (!codigo && !temPreco) continue
 
     out.push({
       linha: i + 2, // linha 1 = cabeçalho
