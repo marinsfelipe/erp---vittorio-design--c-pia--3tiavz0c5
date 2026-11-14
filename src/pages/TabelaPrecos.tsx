@@ -28,6 +28,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import ImportarPrecosDialog from '@/components/precos/ImportarPrecosDialog'
 import {
   DollarSign,
   Search,
@@ -415,6 +416,7 @@ export default function TabelaPrecosPage() {
               Propostas Comerciais
             </Button>
           </Link>
+          <ImportarPrecosDialog onImported={loadData} />
         </div>
       </div>
 
