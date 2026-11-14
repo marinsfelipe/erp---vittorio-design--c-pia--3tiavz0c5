@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { propostasService } from '@/services/propostas'
 import { bomsService } from '@/services/boms'
 import type { Proposta, PropostaItem, Bom } from '@/types/erp'
@@ -63,93 +63,93 @@ export default function CatalogoPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [bomsCadastrados, setBomsCadastrados] = useState<Bom[]>([])
 
-  useEffect(() => {
-    const load = async () => {
-      setIsLoading(true)
+  const load = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      // Carrega propostas e seus itens
+      const props = await propostasService.getAll()
+      setPropostas(props)
+      const lists = await Promise.all(props.map((p) => propostasService.getItems(p.id)))
+      const propostaItens = lists.flat()
+
+      // Carrega produtos cadastrados (BOMs e Preço Direto)
+      let produtosCadastrados: Bom[] = []
       try {
-        // Carrega propostas e seus itens
-        const props = await propostasService.getAll()
-        setPropostas(props)
-        const lists = await Promise.all(props.map((p) => propostasService.getItems(p.id)))
-        const propostaItens = lists.flat()
+        produtosCadastrados = await bomsService.getAll()
+      } catch (errBoms) {
+        console.warn('Aviso ao carregar boms no catálogo:', errBoms)
+      }
+      setBomsCadastrados(produtosCadastrados)
 
-        // Carrega produtos cadastrados (BOMs e Preço Direto)
-        let produtosCadastrados: Bom[] = []
-        try {
-          produtosCadastrados = await bomsService.getAll()
-        } catch (errBoms) {
-          console.warn('Aviso ao carregar boms no catálogo:', errBoms)
-        }
-        setBomsCadastrados(produtosCadastrados)
+      // Mapeamento por SKU para consolidar o catálogo
+      const mapPorSku = new Map<string, CatalogoProdutoItem>()
 
-        // Mapeamento por SKU para consolidar o catálogo
-        const mapPorSku = new Map<string, CatalogoProdutoItem>()
+      // 1. Insere produtos cadastrados em boms que tenham preco_final_tabela, preco_venda ou preco_direto
+      for (const p of produtosCadastrados) {
+        const precoCatalogo =
+          p.preco_final_tabela !== undefined &&
+          p.preco_final_tabela !== null &&
+          Number(p.preco_final_tabela) > 0
+            ? Number(p.preco_final_tabela)
+            : p.preco_venda || 0
 
-        // 1. Insere produtos cadastrados em boms que tenham preco_final_tabela, preco_venda ou preco_direto
-        for (const p of produtosCadastrados) {
-          const precoCatalogo =
-            p.preco_final_tabela !== undefined &&
-            p.preco_final_tabela !== null &&
-            Number(p.preco_final_tabela) > 0
-              ? Number(p.preco_final_tabela)
-              : p.preco_venda || 0
+        mapPorSku.set(p.sku.trim().toUpperCase(), {
+          sku: p.sku,
+          nome_produto: p.nome,
+          preco_unitario: precoCatalogo,
+          preco_direto: Boolean(p.preco_direto),
+          unidade: p.unidade || 'UN',
+          origem: p.preco_direto ? 'Cadastro Avulso' : 'Tabela / BOM',
+          created: p.created,
+          bom: p,
+        })
+      }
 
-          mapPorSku.set(p.sku.trim().toUpperCase(), {
-            sku: p.sku,
-            nome_produto: p.nome,
-            preco_unitario: precoCatalogo,
-            preco_direto: Boolean(p.preco_direto),
-            unidade: p.unidade || 'UN',
-            origem: p.preco_direto ? 'Cadastro Avulso' : 'Tabela / BOM',
-            created: p.created,
-            bom: p,
+      // 2. Sobrepõe ou complementa com histórico de itens de propostas (último preço registrado)
+      for (const it of propostaItens) {
+        const skuKey = it.sku.trim().toUpperCase()
+        const existing = mapPorSku.get(skuKey)
+
+        // Se já existe e o item da proposta tem preço direto ou é mais recente, atualiza
+        const ehPrecoDireto = Boolean(it.preco_direto || existing?.preco_direto)
+
+        if (!existing) {
+          mapPorSku.set(skuKey, {
+            sku: it.sku,
+            nome_produto: it.nome_produto || '',
+            preco_unitario: it.preco_unitario,
+            preco_direto: ehPrecoDireto,
+            unidade: it.unidade || 'UN',
+            proposta_id: it.proposta_id,
+            created: it.created,
           })
-        }
-
-        // 2. Sobrepõe ou complementa com histórico de itens de propostas (último preço registrado)
-        for (const it of propostaItens) {
-          const skuKey = it.sku.trim().toUpperCase()
-          const existing = mapPorSku.get(skuKey)
-
-          // Se já existe e o item da proposta tem preço direto ou é mais recente, atualiza
-          const ehPrecoDireto = Boolean(it.preco_direto || existing?.preco_direto)
-
-          if (!existing) {
+        } else {
+          // Se o item da proposta for mais recente ou se o cadastro original não tinha preço de venda
+          if ((it.created ?? '') >= (existing.created ?? '') || existing.preco_unitario === 0) {
             mapPorSku.set(skuKey, {
-              sku: it.sku,
-              nome_produto: it.nome_produto || '',
+              ...existing,
               preco_unitario: it.preco_unitario,
+              nome_produto: it.nome_produto || existing.nome_produto,
               preco_direto: ehPrecoDireto,
-              unidade: it.unidade || 'UN',
               proposta_id: it.proposta_id,
-              created: it.created,
+              created: it.created || existing.created,
             })
-          } else {
-            // Se o item da proposta for mais recente ou se o cadastro original não tinha preço de venda
-            if ((it.created ?? '') >= (existing.created ?? '') || existing.preco_unitario === 0) {
-              mapPorSku.set(skuKey, {
-                ...existing,
-                preco_unitario: it.preco_unitario,
-                nome_produto: it.nome_produto || existing.nome_produto,
-                preco_direto: ehPrecoDireto,
-                proposta_id: it.proposta_id,
-                created: it.created || existing.created,
-              })
-            }
           }
         }
-
-        setCatalogoItens(Array.from(mapPorSku.values()))
-      } catch (err: any) {
-        console.error(err)
-        toast.error('Erro ao carregar catálogo.')
-      } finally {
-        setIsLoading(false)
       }
+
+      setCatalogoItens(Array.from(mapPorSku.values()))
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Erro ao carregar catálogo.')
+    } finally {
+      setIsLoading(false)
     }
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    load()
+  }, [load])
 
   const filtrados = catalogoItens.filter((it) => {
     if (!searchTerm.trim()) return true
