@@ -116,8 +116,8 @@ export async function lerPlanilhaPrecos(file: File): Promise<Record<string, unkn
  * brasileiros ("18.500,00", "18500,00") e o formato com ponto decimal
  * ("18500.00", comum quando a célula já é numérica no Excel).
  */
-export const parsePrecoBr = (raw: string): number => {
-  if (!raw && raw !== 0) return NaN
+export const parsePrecoBr = (raw: string | number): number => {
+  if (raw === '' || raw === null || raw === undefined) return NaN
   let t = String(raw).replace(/[R$\s]/g, '')
   if (!t) return NaN
   if (t.includes(',') && t.includes('.')) {

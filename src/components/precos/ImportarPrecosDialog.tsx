@@ -38,12 +38,9 @@ import {
   type DecisaoImportacao,
   type ProblemaLinha,
   type PreviewImportacaoPrecos,
-} from '@/utils/precosImportParser'
-import {
-  classificarLinhas,
-  gravarImportacaoPrecos,
   type ResultadoImportacaoPrecos,
-} from '@/services/precosImport'
+} from '@/utils/precosImportParser'
+import { classificarLinhas, gravarImportacaoPrecos } from '@/services/precosImport'
 
 interface ImportarPrecosDialogProps {
   onImported: () => void
