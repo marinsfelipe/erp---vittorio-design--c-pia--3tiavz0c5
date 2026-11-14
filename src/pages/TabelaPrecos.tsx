@@ -29,6 +29,9 @@ import {
 } from '@/components/ui/dialog'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import ImportarPrecosDialog from '@/components/precos/ImportarPrecosDialog'
+import ClassificarNcmLoteButton from '@/components/precos/ClassificarNcmLoteButton'
+import NcmCell from '@/components/precos/NcmCell'
+import { useAuth } from '@/context/AuthContext'
 import {
   DollarSign,
   Search,
@@ -61,6 +64,8 @@ export interface ProdutoTabelaRow {
 }
 
 export default function TabelaPrecosPage() {
+  const { perfil } = useAuth()
+  const podeAdmin = perfil === 'admin'
   const [boms, setBoms] = useState<Bom[]>([])
   const [parametros, setParametros] = useState<Parametro[]>([])
   const [bomItemsCache, setBomItemsCache] = useState<Record<string, BomItem[]>>({})
@@ -417,6 +422,7 @@ export default function TabelaPrecosPage() {
             </Button>
           </Link>
           <ImportarPrecosDialog onImported={loadData} />
+          <ClassificarNcmLoteButton boms={boms} onConcluido={loadData} podeAdmin={podeAdmin} />
         </div>
       </div>
 
@@ -548,6 +554,7 @@ export default function TabelaPrecosPage() {
                     Preço Final da Tabela
                   </TableHead>
                   <TableHead className="text-center font-semibold">Origem do Preço</TableHead>
+                  <TableHead className="font-semibold">NCM / Classificação Fiscal</TableHead>
                   <TableHead className="text-right font-semibold">Ação</TableHead>
                 </TableRow>
               </TableHeader>
@@ -616,6 +623,9 @@ export default function TabelaPrecosPage() {
                       </TableCell>
                       <TableCell className="text-center">
                         {renderBadgeOrigem(r.origem, r)}
+                      </TableCell>
+                      <TableCell>
+                        <NcmCell bom={r.bom} podeAdmin={podeAdmin} onChanged={loadData} />
                       </TableCell>
                       <TableCell className="text-right">
                         {r.precoDireto ? (

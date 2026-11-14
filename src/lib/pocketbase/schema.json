@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-14T21:33:51.279Z",
+  "generatedAt": "2026-11-14T22:00:25.072Z",
   "collections": [
     {
       "name": "users",
@@ -298,6 +298,51 @@
         {
           "name": "preco_final_tabela",
           "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ncm",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ncm_origem",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["manual", "automatica", "sugestao"]
+        },
+        {
+          "name": "ncm_sugerido",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ncm_confianca",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["alta", "media", "baixa"]
+        },
+        {
+          "name": "ncm_justificativa",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "ncm_status",
+          "type": "select",
+          "required": false,
+          "system": false,
+          "selectValues": ["pronto_nf", "pendente_fiscal"]
+        },
+        {
+          "name": "ncm_classificado_em",
+          "type": "date",
           "required": false,
           "system": false
         }
@@ -1431,6 +1476,80 @@
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_categorias_produto_nome ON categorias_produto (nome)"]
+    },
+    {
+      "name": "ncm_lote_progresso",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != ''",
+        "view": "@request.auth.id != ''",
+        "create": null,
+        "update": null,
+        "delete": null
+      },
+      "fields": [
+        {
+          "name": "estado",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "processados",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "auto_alta",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sugestoes",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "sem_sugestao",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "erros",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "mensagem",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "iniciado_em",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "finalizado_em",
+          "type": "date",
+          "required": false,
+          "system": false
+        }
+      ],
+      "indexes": []
     }
   ]
 }

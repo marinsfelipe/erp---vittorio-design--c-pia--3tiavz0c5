@@ -52,6 +52,22 @@ export interface Parametro {
 export type OrigemPrecoTabela = 'calculado' | 'sobrepreco' | 'manual' | 'preco_direto'
 export type TipoSobrepreco = 'nenhum' | 'percentual' | 'valor'
 
+// ---- Classificação fiscal (NCM) ----
+export type OrigemNcm = 'manual' | 'automatica' | 'sugestao'
+export type ConfiancaNcm = 'alta' | 'media' | 'baixa'
+export type StatusNcm = 'pronto_nf' | 'pendente_fiscal'
+
+export const LABEL_ORIGEM_NCM: Record<string, string> = {
+  manual: 'Manual',
+  automatica: 'Automática',
+  sugestao: 'Sugestão pendente',
+}
+
+export const LABEL_STATUS_NCM: Record<string, string> = {
+  pronto_nf: 'Pronto para NF',
+  pendente_fiscal: 'Pendente fiscal',
+}
+
 export interface Bom {
   id: string
   sku: string
@@ -67,6 +83,14 @@ export interface Bom {
   sobrepreco_tipo?: TipoSobrepreco
   sobrepreco_valor?: number
   preco_final_tabela?: number
+  // Classificação fiscal (NCM)
+  ncm?: string
+  ncm_origem?: OrigemNcm | ''
+  ncm_sugerido?: string
+  ncm_confianca?: ConfiancaNcm | ''
+  ncm_justificativa?: string
+  ncm_status?: StatusNcm | ''
+  ncm_classificado_em?: string
   created?: string
   updated?: string
 }

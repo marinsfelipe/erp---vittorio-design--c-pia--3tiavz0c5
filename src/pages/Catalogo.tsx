@@ -16,6 +16,9 @@ import {
 } from '@/components/ui/table'
 import { Package, Search, Tag } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAuth } from '@/context/AuthContext'
+import NcmCell from '@/components/precos/NcmCell'
+import ClassificarNcmLoteButton from '@/components/precos/ClassificarNcmLoteButton'
 
 const statusLabels: Record<string, string> = {
   rascunho: 'Rascunho',
@@ -42,6 +45,8 @@ export interface CatalogoProdutoItem {
   proposta_id?: string
   origem?: string
   created?: string
+  /** Registro do BOM de origem, quando o produto veio de um cadastro (para NCM). */
+  bom?: Bom
 }
 
 /**
@@ -50,10 +55,13 @@ export interface CatalogoProdutoItem {
  * Exibe marcação "Preço Direto" para produtos avulsos cadastrados sem BOM.
  */
 export default function CatalogoPage() {
+  const { perfil } = useAuth()
+  const podeAdmin = perfil === 'admin'
   const [catalogoItens, setCatalogoItens] = useState<CatalogoProdutoItem[]>([])
   const [propostas, setPropostas] = useState<Proposta[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [bomsCadastrados, setBomsCadastrados] = useState<Bom[]>([])
 
   useEffect(() => {
     const load = async () => {
@@ -72,6 +80,7 @@ export default function CatalogoPage() {
         } catch (errBoms) {
           console.warn('Aviso ao carregar boms no catálogo:', errBoms)
         }
+        setBomsCadastrados(produtosCadastrados)
 
         // Mapeamento por SKU para consolidar o catálogo
         const mapPorSku = new Map<string, CatalogoProdutoItem>()
@@ -93,6 +102,7 @@ export default function CatalogoPage() {
             unidade: p.unidade || 'UN',
             origem: p.preco_direto ? 'Cadastro Avulso' : 'Tabela / BOM',
             created: p.created,
+            bom: p,
           })
         }
 
@@ -138,6 +148,7 @@ export default function CatalogoPage() {
       }
     }
     load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const filtrados = catalogoItens.filter((it) => {
@@ -155,16 +166,19 @@ export default function CatalogoPage() {
   return (
     <div className="space-y-6">
       {/* Cabeçalho */}
-      <div className="border-b border-border pb-5">
-        <div className="flex items-center gap-2">
-          <Package className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Catálogo de Produtos
-          </h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <Package className="h-6 w-6 text-primary" />
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              Catálogo de Produtos
+            </h1>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">
+            Produtos finais disponíveis com preço de venda — use nas suas propostas
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground mt-1">
-          Produtos finais disponíveis com preço de venda — use nas suas propostas
-        </p>
+        <ClassificarNcmLoteButton boms={bomsCadastrados} onConcluido={load} podeAdmin={podeAdmin} />
       </div>
 
       {/* Busca */}
@@ -200,6 +214,7 @@ export default function CatalogoPage() {
                 <TableHead className="font-semibold">Produto</TableHead>
                 <TableHead className="font-semibold">Tipo</TableHead>
                 <TableHead className="text-right font-semibold">Preço de Venda</TableHead>
+                <TableHead className="font-semibold">NCM</TableHead>
                 <TableHead className="text-center font-semibold">Usado em</TableHead>
               </TableRow>
             </TableHeader>
@@ -236,6 +251,13 @@ export default function CatalogoPage() {
                     </TableCell>
                     <TableCell className="text-right font-mono font-semibold text-emerald-700 dark:text-emerald-400">
                       {formatBRL(it.preco_unitario)}
+                    </TableCell>
+                    <TableCell>
+                      {it.bom ? (
+                        <NcmCell bom={it.bom} podeAdmin={podeAdmin} onChanged={load} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-center">
                       {prop ? (
