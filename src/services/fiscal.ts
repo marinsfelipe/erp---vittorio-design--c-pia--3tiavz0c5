@@ -3,12 +3,28 @@ import { parametrosService } from '@/services/parametros'
 import type { Empresa, EmpresaInput, Faturamento, ImpostosEstimados, Parametro } from '@/types/erp'
 
 /**
- * Módulo Fiscal (Funcionalidade 1 — impostos estimados por regime).
+ * Módulo Fiscal (F1 — impostos estimados por regime; F2 — CFOP e CEST).
  * Regras de negócio no backend (pocketbase/hooks/fiscal.pb.js, rota custom
  * /backend/v1/custom/fiscal/impostos via pb.send); este serviço só orquestra.
  */
 
 const COLLECTION_EMPRESA = 'empresa'
+
+/** Resposta do hook fiscal — F1 (impostos) + F2 (CFOP e ST). */
+export interface RespostaFiscal extends ImpostosEstimados {
+  /** CFOP sugerido: 5.102/6.102 (ou 5.405/6.405 com substituição tributária). */
+  cfop?: string
+  mesma_uf?: boolean
+  uf_empresa?: string
+  /** Algum item tem NCM sujeito a substituição tributária. */
+  st?: boolean
+  /** Itens com ST: [{ sku, ncm }]. */
+  st_itens?: Array<{ sku: string; ncm: string }>
+  /** CEST por SKU (quando preenchido no cadastro do produto). */
+  cest?: Record<string, string>
+  /** CEST sugerido para itens de ST. */
+  cest_sugerido?: string
+}
 
 export const fiscalService = {
   /** Cadastro da Empresa (1 registro, admin-only). */
@@ -43,18 +59,33 @@ export const fiscalService = {
     return (await fiscalService.getEmpresa()) as Empresa
   },
 
-  /** Impostos estimados de um faturamento — cálculo no backend (hook fiscal.pb.js). */
-  async calcularImpostos(faturamentoId: string): Promise<ImpostosEstimados> {
+  /** Impostos + CFOP de um faturamento — cálculo no backend (hook fiscal.pb.js). */
+  async calcularImpostos(faturamentoId: string): Promise<RespostaFiscal> {
     const res = await pb.send('/backend/v1/custom/fiscal/impostos', {
       method: 'POST',
       body: { faturamento: faturamentoId },
     })
-    return res as unknown as ImpostosEstimados
+    return res as unknown as RespostaFiscal
   },
 
   /** Parâmetros fiscais (chaves fiscal_*) — editáveis pelo admin. */
   async listarParametrosFiscais(): Promise<Parametro[]> {
     const todos = await parametrosService.getAll()
     return todos.filter((p) => p.chave.startsWith('fiscal_'))
+  },
+
+  /** Lista de NCMs sujeitos a substituição tributária (parametro fiscal_st_ncm). */
+  async getListaStNcm(): Promise<string[]> {
+    try {
+      const rec = await pb
+        .collection('parametros')
+        .getFirstListItem<Parametro>("chave = 'fiscal_st_ncm'")
+      return (rec.valor_texto || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    } catch {
+      return ['8418.50.90']
+    }
   },
 }

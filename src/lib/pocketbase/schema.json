@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T19:18:13.072Z",
+  "generatedAt": "2026-11-15T19:56:30.029Z",
   "collections": [
     {
       "name": "users",
@@ -355,6 +355,12 @@
         {
           "name": "ncm_classificado_em",
           "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cest",
+          "type": "text",
           "required": false,
           "system": false
         }
@@ -1441,6 +1447,12 @@
         },
         {
           "name": "impostos_detalhe",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cfop",
           "type": "text",
           "required": false,
           "system": false

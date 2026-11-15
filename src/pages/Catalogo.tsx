@@ -18,6 +18,7 @@ import { Package, Search, Tag } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/AuthContext'
 import NcmCell from '@/components/precos/NcmCell'
+import CestCell from '@/components/precos/CestCell'
 import ClassificarNcmLoteButton from '@/components/precos/ClassificarNcmLoteButton'
 import EditarProdutoCatalogoDialog from '@/components/precos/EditarProdutoCatalogoDialog'
 
@@ -216,6 +217,7 @@ export default function CatalogoPage() {
                 <TableHead className="font-semibold">Tipo</TableHead>
                 <TableHead className="text-right font-semibold">Preço de Venda</TableHead>
                 <TableHead className="font-semibold">NCM</TableHead>
+                <TableHead className="font-semibold">CEST</TableHead>
                 <TableHead className="text-center font-semibold">Usado em</TableHead>
               </TableRow>
             </TableHeader>
@@ -263,6 +265,13 @@ export default function CatalogoPage() {
                     <TableCell>
                       {it.bom ? (
                         <NcmCell bom={it.bom} podeAdmin={podeAdmin} onChanged={load} />
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {it.bom ? (
+                        <CestCell bom={it.bom} podeAdmin={podeAdmin} onChanged={load} />
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}

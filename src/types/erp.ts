@@ -92,6 +92,8 @@ export interface Bom {
   ncm_justificativa?: string
   ncm_status?: StatusNcm | ''
   ncm_classificado_em?: string
+  /** Fiscal F2 — CEST opcional (formato XX.XXX.XX), preenchido pelo admin. */
+  cest?: string
   created?: string
   updated?: string
 }
@@ -414,6 +416,10 @@ export interface FaturamentoItemProduto {
   quantidade: number
   valor_unitario: number
   valor_total: number
+  /** Fiscal F2 — NCM do produto (quando preenchido no cadastro do BOM). */
+  ncm?: string
+  /** Fiscal F2 — CEST do produto (quando preenchido no cadastro do BOM). */
+  cest?: string
 }
 
 export interface Faturamento {
@@ -444,6 +450,8 @@ export interface Faturamento {
   valor_liquido?: number
   regime_tributario?: RegimeTributario | ''
   impostos_detalhe?: string
+  /** Fiscal F2 — CFOP da pré-nota (sugerido pelo hook, editável pelo admin). */
+  cfop?: string
   expand?: {
     proposta?: Proposta
     cliente?: Cliente

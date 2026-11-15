@@ -81,6 +81,32 @@ routerAdd(
       return []
     }
 
+    // NCMs sujeitos a SUBSTITUIÇÃO TRIBUTÁRIA (parametro fiscal_st_ncm,
+    // texto CSV — migração 0028). Compara pelos dígitos (aceita 8418.50.90
+    // ou 84185090 gravado).
+    function listaNcmSt() {
+      try {
+        const p = app.findFirstRecordByData('parametros', 'chave', 'fiscal_st_ncm')
+        if (p) {
+          return (p.getString('valor_texto') || '')
+            .split(',')
+            .map(function (s) {
+              return s.trim().replace(/\D/g, '')
+            })
+            .filter(Boolean)
+        }
+      } catch (_) {}
+      return []
+    }
+
+    // CFOP sugerido: dentro do estado 5.102 / interestadual 6.102; com item
+    // de substituição tributária vira 5.405 / 6.405 (só sugere — o admin
+    // confirma com o contador e pode editar).
+    function cfopSugerido(mesmaUf, temSt) {
+      if (temSt) return mesmaUf ? '5.405' : '6.405'
+      return mesmaUf ? '5.102' : '6.102'
+    }
+
     function arred(v) {
       return Math.round(v * 100) / 100
     }
@@ -286,12 +312,52 @@ routerAdd(
         ? calcularSimples(valorTotal, fat)
         : calcularPresumido(valorTotal, ufCliente, produtos, ncmPorSku)
 
+    // ---------------------- CFOP automático + CEST --------------------------
+    // Produtos finais com item sujeito a ST (lista fiscal_st_ncm) mudam o
+    // CFOP sugerido para 5.405/6.405. CEST por SKU vem da coleção `boms`
+    // (campo cest, migração 0028). Só grava CFOP se o admin não editou —
+    // CFOP em branco OU sugestão nova quando o gravado é o padrão anterior.
+    const ufEmp = ufEmpresa()
+    const mesmaUf = !!ufCliente && ufCliente === ufEmp
+    const listaSt = listaNcmSt()
+    let temSt = false
+    const itensSt = []
+    for (const p of produtos) {
+      const sku = String(p.sku || '')
+      const ncm = String(ncmPorSku[sku] || '').replace(/\D/g, '')
+      if (ncm && listaSt.indexOf(ncm) >= 0) {
+        temSt = true
+        itensSt.push({ sku: sku, ncm: ncm })
+      }
+    }
+    const cfopNovo = cfopSugerido(mesmaUf, temSt)
+
+    // CEST por SKU (1 listagem única dos SKUs — sem rajada de requests).
+    const cestPorSku = {}
+    if (skus.length > 0) {
+      try {
+        const filtroCest =
+          'sku IN (' + skus.map((s) => "'" + s.replace(/'/g, "''") + "'").join(',') + ')'
+        const listaBoms = app.findRecordsByFilter('boms', filtroCest, '', 0, 0)
+        for (const b of listaBoms) {
+          const c = (b.getString('cest') || '').trim()
+          if (c) cestPorSku[b.getString('sku')] = c
+        }
+      } catch (_) {}
+    }
+
     // ---- snapshot nos campos do próprio faturamento (admin-only via RLS) ---
     try {
       fat.set('impostos_estimados', resultado.total)
       fat.set('valor_liquido', resultado.liquido)
       fat.set('regime_tributario', regime === 'simples' ? 'simples' : 'presumido')
       fat.set('impostos_detalhe', JSON.stringify(resultado.detalhe || {}))
+      // CFOP: só grava quando em branco OU quando o gravado é outra sugestão
+      // automática (5.x/6.x) — a edição manual do admin nunca é sobrescrita.
+      const cfopGravado = (fat.getString('cfop') || '').trim()
+      if (!cfopGravado || /^(5|6)\.(102|405)$/.test(cfopGravado)) {
+        fat.set('cfop', cfopNovo)
+      }
       app.save(fat)
     } catch (err) {
       console.log('[FISCAL] Snapshot no faturamento ' + fatId + ' falhou: ' + String(err))
@@ -305,7 +371,10 @@ routerAdd(
         '): total R$ ' +
         resultado.total +
         ' / líquido R$ ' +
-        resultado.liquido,
+        resultado.liquido +
+        ' / CFOP ' +
+        cfopNovo +
+        (temSt ? ' (item com ST)' : ''),
     )
 
     return e.json(200, {
@@ -315,6 +384,14 @@ routerAdd(
       impostos: resultado.detalhe || {},
       total: resultado.total,
       liquido: resultado.liquido,
+      // ---- Fiscal F2: CFOP sugerido + substituição tributária ----
+      cfop: cfopNovo,
+      mesma_uf: mesmaUf,
+      uf_empresa: ufEmp,
+      st: temSt,
+      st_itens: itensSt,
+      cest: cestPorSku,
+      cest_sugerido: '21.007.00',
       aviso: 'ESTIMATIVA — apuração oficial pelo contador',
     })
   },

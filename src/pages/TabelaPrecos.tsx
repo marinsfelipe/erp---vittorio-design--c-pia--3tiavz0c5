@@ -31,6 +31,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import ImportarPrecosDialog from '@/components/precos/ImportarPrecosDialog'
 import ClassificarNcmLoteButton from '@/components/precos/ClassificarNcmLoteButton'
 import NcmCell from '@/components/precos/NcmCell'
+import CestCell from '@/components/precos/CestCell'
 import { useAuth } from '@/context/AuthContext'
 import {
   DollarSign,
@@ -543,6 +544,7 @@ export default function TabelaPrecosPage() {
                   </TableHead>
                   <TableHead className="text-center font-semibold">Origem do Preço</TableHead>
                   <TableHead className="font-semibold">NCM / Classificação Fiscal</TableHead>
+                  <TableHead className="font-semibold">CEST</TableHead>
                   <TableHead className="text-right font-semibold">Ação</TableHead>
                 </TableRow>
               </TableHeader>
@@ -614,6 +616,9 @@ export default function TabelaPrecosPage() {
                       </TableCell>
                       <TableCell>
                         <NcmCell bom={r.bom} podeAdmin={podeAdmin} onChanged={loadData} />
+                      </TableCell>
+                      <TableCell>
+                        <CestCell bom={r.bom} podeAdmin={podeAdmin} onChanged={loadData} />
                       </TableCell>
                       <TableCell className="text-right">
                         {r.precoDireto ? (

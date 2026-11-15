@@ -55,6 +55,72 @@ export default function FaturamentosPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
   const [alterandoStatusId, setAlterandoStatusId] = useState<string | null>(null)
   const [visualizandoFaturamento, setVisualizandoFaturamento] = useState<Faturamento | null>(null)
+  // Fiscal F2 — CFOP/CEST (calculados pelo hook fiscal; só admin)
+  const [fiscalDetalhe, setFiscalDetalhe] = useState<RespostaFiscal | null>(null)
+  const [cfopEdicao, setCfopEdicao] = useState('')
+  const [salvandoCfop, setSalvandoCfop] = useState(false)
+
+  // Ao abrir os detalhes (admin), busca CFOP/CEST/ST do hook fiscal (1 request).
+  const abrirDetalhes = async (fat: Faturamento) => {
+    setVisualizandoFaturamento(fat)
+    if (!isAdmin) return
+    setFiscalDetalhe(null)
+    setCfopEdicao(fat.cfop || '')
+    try {
+      const res = await fiscalService.calcularImpostos(fat.id)
+      setFiscalDetalhe(res)
+      if (res.cfop) setCfopEdicao(res.cfop)
+    } catch (err) {
+      // Sem CFOP/impostos calculados — segue só com os dados cadastrados
+      console.warn('Fiscal: falha ao buscar CFOP/impostos do faturamento:', err)
+    }
+  }
+
+  // Fiscal F2 — grava o CFOP digitado pelo admin (validação de 4 dígitos).
+  const salvarCfop = async () => {
+    if (!visualizandoFaturamento) return
+    const limpo = cfopEdicao.replace(/\D/g, '')
+    if (limpo && limpo.length !== 4) {
+      toast.error('O CFOP deve ter 4 dígitos (ex.: 5.102 ou 5102).')
+      return
+    }
+    setSalvandoCfop(true)
+    try {
+      const atualizado = await faturamentosService.update(visualizandoFaturamento.id, {
+        cfop: cfopEdicao.trim(),
+      })
+      setVisualizandoFaturamento(atualizado)
+      setFaturamentos((prev) => prev.map((f) => (f.id === atualizado.id ? atualizado : f)))
+      toast.success('CFOP salvo.')
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao salvar o CFOP.')
+    } finally {
+      setSalvandoCfop(false)
+    }
+  }
+
+  // Fiscal F2 — preenche o CEST sugerido em todos os itens de ST (1 clique).
+  const aplicarCestSugerido = async () => {
+    if (!visualizandoFaturamento || !fiscalDetalhe?.cest_sugerido || !isAdmin) return
+    const stSku = new Set((fiscalDetalhe.st_itens || []).map((i) => i.sku))
+    const produtos = (visualizandoFaturamento.produtos || []).map((p) => ({
+      ...p,
+      cest: stSku.has(p.sku || '') && !p.cest ? fiscalDetalhe.cest_sugerido : p.cest,
+    }))
+    setVisualizandoFaturamento({ ...visualizandoFaturamento, produtos })
+    try {
+      const atualizado = await faturamentosService.update(visualizandoFaturamento.id, { produtos })
+      setVisualizandoFaturamento(atualizado)
+      setFaturamentos((prev) => prev.map((f) => (f.id === atualizado.id ? atualizado : f)))
+      toast.success(
+        `CEST ${fiscalDetalhe.cest_sugerido} sugerido para os itens de substituição tributária. Confira com o contador.`,
+      )
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao gravar o CEST sugerido.')
+    }
+  }
 
   const load = async () => {
     setIsLoading(true)

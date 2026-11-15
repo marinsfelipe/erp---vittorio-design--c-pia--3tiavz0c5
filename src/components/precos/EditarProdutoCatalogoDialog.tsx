@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Pencil } from 'lucide-react'
 import { toast } from 'sonner'
+import { formatarCest } from '@/components/precos/CestCell'
 
 /**
  * Botão + diálogo para o admin editar as características de um produto do
@@ -33,11 +34,13 @@ export default function EditarProdutoCatalogoDialog({
   const [nome, setNome] = useState(bom.nome || '')
   const [descricao, setDescricao] = useState(bom.descricao || '')
   const [ncm, setNcm] = useState((bom.ncm || '').replace(/\D/g, ''))
+  const [cest, setCest] = useState(bom.cest || '')
 
   const abrir = () => {
     setNome(bom.nome || '')
     setDescricao(bom.descricao || '')
     setNcm((bom.ncm || '').replace(/\D/g, ''))
+    setCest(bom.cest || '')
     setAberto(true)
   }
 
@@ -49,6 +52,11 @@ export default function EditarProdutoCatalogoDialog({
     }
     if (!nome.trim()) {
       toast.error('Informe o nome do produto.')
+      return
+    }
+    const cestLimpo = cest.replace(/\D/g, '')
+    if (cestLimpo && cestLimpo.length !== 7) {
+      toast.error('O CEST deve conter 7 dígitos no formato XX.XXX.XX.')
       return
     }
     setSalvando(true)
@@ -63,6 +71,7 @@ export default function EditarProdutoCatalogoDialog({
               ncm_status: 'pronto_nf',
             }
           : {}),
+        cest: cestLimpo ? formatarCest(cestLimpo) : '',
       } as any)
       toast.success('Características do produto salvas.')
       setAberto(false)
@@ -123,6 +132,19 @@ export default function EditarProdutoCatalogoDialog({
               <p className="text-[11px] text-muted-foreground">
                 Preenchido manualmente, fica com origem "Manual" — o lote automático nunca
                 sobrescreve.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">CEST (opcional — XX.XXX.XX)</label>
+              <Input
+                value={cest}
+                onChange={(e) => setCest(formatarCest(e.target.value))}
+                placeholder="Ex: 21.007.00"
+                className="font-mono"
+                maxLength={9}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Obrigatório na NF apenas quando o item é sujeito a substituição tributária.
               </p>
             </div>
           </div>
