@@ -123,6 +123,51 @@ export const faturamentosService = {
     return normalizarFaturamento(rec)
   },
 
+  /**
+   * Fiscal F3 — Lança/corrige os dados da NF emitida pelo contador
+   * (número, série, data e valor total da nota) e marca o faturamento
+   * como 'emitido'. Passar nf_numero vazio desfaz o lançamento.
+   */
+  async lancarNf(
+    id: string,
+    dados: {
+      nf_numero: string
+      nf_serie: string
+      nf_data_emissao: string
+      nf_valor: number
+    },
+  ): Promise<Faturamento> {
+    const nfNumero = (dados.nf_numero || '').trim()
+    const rec = await pb.collection('faturamentos').update(id, {
+      nf_numero: nfNumero,
+      nf_serie: (dados.nf_serie || '').trim(),
+      nf_data_emissao: nfNumero ? dados.nf_data_emissao || null : null,
+      nf_valor: nfNumero ? Number(dados.nf_valor) || 0 : null,
+      status: 'emitido',
+      // data_emissao acompanha a emissão real da NF quando houver
+      data_emissao: nfNumero ? dados.nf_data_emissao || null : null,
+    })
+    return normalizarFaturamento(rec)
+  },
+
+  /** Fiscal F3 — NF emitida foi lançada para este faturamento? */
+  nfLancada(f: Pick<Faturamento, 'nf_numero' | 'status'>): boolean {
+    return f.status === 'emitido' && !!(f.nf_numero && f.nf_numero.trim())
+  },
+
+  /** Fiscal F3 — Desfaz o lançamento da NF (volta para 'pendente', limpa nf_*). */
+  async desfazerNf(id: string): Promise<Faturamento> {
+    const rec = await pb.collection('faturamentos').update(id, {
+      nf_numero: '',
+      nf_serie: '',
+      nf_data_emissao: null,
+      nf_valor: null,
+      status: 'pendente',
+      data_emissao: null,
+    })
+    return normalizarFaturamento(rec)
+  },
+
   async delete(id: string): Promise<boolean> {
     return await pb.collection('faturamentos').delete(id)
   },

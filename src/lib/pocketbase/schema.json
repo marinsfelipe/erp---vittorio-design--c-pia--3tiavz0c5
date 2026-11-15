@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T19:56:30.029Z",
+  "generatedAt": "2026-11-15T20:12:57.523Z",
   "collections": [
     {
       "name": "users",
@@ -1454,6 +1454,30 @@
         {
           "name": "cfop",
           "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nf_numero",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nf_serie",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nf_data_emissao",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "nf_valor",
+          "type": "number",
           "required": false,
           "system": false
         }

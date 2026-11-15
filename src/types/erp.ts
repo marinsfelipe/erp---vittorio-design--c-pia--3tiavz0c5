@@ -452,6 +452,14 @@ export interface Faturamento {
   impostos_detalhe?: string
   /** Fiscal F2 — CFOP da pré-nota (sugerido pelo hook, editável pelo admin). */
   cfop?: string
+  /**
+   * Fiscal F3 — dados da NF emitida pelo contador (lançados pelo admin).
+   * Presença de nf_numero = NF lançada (aparece no Livro de Saídas).
+   */
+  nf_numero?: string
+  nf_serie?: string
+  nf_data_emissao?: string
+  nf_valor?: number
   expand?: {
     proposta?: Proposta
     cliente?: Cliente

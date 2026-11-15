@@ -44,6 +44,7 @@ import {
   Mail,
   Phone,
   FileText,
+  FileCheck2,
   AlertCircle,
   Calculator,
   AlertTriangle,
@@ -65,6 +66,14 @@ export default function FaturamentosPage() {
   const [fiscalDetalhe, setFiscalDetalhe] = useState<RespostaFiscal | null>(null)
   const [cfopEdicao, setCfopEdicao] = useState('')
   const [salvandoCfop, setSalvandoCfop] = useState(false)
+  // Fiscal F3 — lançamento da NF emitida pelo contador (só admin)
+  const [nfForm, setNfForm] = useState({
+    nf_numero: '',
+    nf_serie: '',
+    nf_data_emissao: '',
+    nf_valor: '',
+  })
+  const [salvandoNf, setSalvandoNf] = useState(false)
 
   // Ao abrir os detalhes (admin), busca CFOP/CEST/ST do hook fiscal (1 request).
   const abrirDetalhes = async (fat: Faturamento) => {
@@ -72,6 +81,12 @@ export default function FaturamentosPage() {
     if (!isAdmin) return
     setFiscalDetalhe(null)
     setCfopEdicao(fat.cfop || '')
+    setNfForm({
+      nf_numero: fat.nf_numero || '',
+      nf_serie: fat.nf_serie || '',
+      nf_data_emissao: fat.nf_data_emissao || '',
+      nf_valor: fat.nf_valor ? String(fat.nf_valor) : '',
+    })
     try {
       const res = await fiscalService.calcularImpostos(fat.id)
       setFiscalDetalhe(res)
@@ -125,6 +140,83 @@ export default function FaturamentosPage() {
     } catch (err: any) {
       console.error(err)
       toast.error(err?.message || 'Erro ao gravar o CEST sugerido.')
+    }
+  }
+
+  // Fiscal F3 — lança/corrige os dados da NF emitida pelo contador e marca
+  // o faturamento como "Emitido". Grava o número, série, data e valor da nota.
+  const salvarNf = async () => {
+    if (!visualizandoFaturamento || !isAdmin) return
+    const numero = nfForm.nf_numero.trim()
+    if (!numero) {
+      toast.error('Informe o número da NF (use "Desfazer lançamento" para removê-la).')
+      return
+    }
+    if (!nfForm.nf_data_emissao) {
+      toast.error('Informe a data de emissão da NF.')
+      return
+    }
+    const valor = Number(String(nfForm.nf_valor).replace(',', '.'))
+    if (!isFinite(valor) || valor <= 0) {
+      toast.error('Informe o valor total da NF emitida.')
+      return
+    }
+    setSalvandoNf(true)
+    try {
+      const atualizado = await faturamentosService.lancarNf(visualizandoFaturamento.id, {
+        nf_numero: numero,
+        nf_serie: nfForm.nf_serie.trim(),
+        nf_data_emissao: nfForm.nf_data_emissao,
+        nf_valor: valor,
+      })
+
+      // Sem impostos calculados ainda: calcula agora (mesmo fluxo do toggle de status)
+      let final = atualizado
+      if (!atualizado.impostos_estimados) {
+        try {
+          const est = await fiscalService.calcularImpostos(atualizado.id)
+          final = { ...atualizado, impostos_estimados: est.total, valor_liquido: est.liquido }
+        } catch (errFiscal) {
+          console.warn('Fiscal: cálculo de impostos falhou ao lançar NF:', errFiscal)
+        }
+      }
+
+      setVisualizandoFaturamento(final)
+      setNfForm({
+        nf_numero: final.nf_numero || '',
+        nf_serie: final.nf_serie || '',
+        nf_data_emissao: final.nf_data_emissao || '',
+        nf_valor: final.nf_valor ? String(final.nf_valor) : '',
+      })
+      setFaturamentos((prev) => prev.map((f) => (f.id === final.id ? final : f)))
+      toast.success(
+        `NF ${numero}${final.nf_serie ? '/' + final.nf_serie : ''} lançada — faturamento Emitido.`,
+      )
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao lançar a NF emitida.')
+    } finally {
+      setSalvandoNf(false)
+    }
+  }
+
+  // Fiscal F3 — desfaz o lançamento da NF (volta para Pendente, sem NF).
+  const desfazerNf = async () => {
+    if (!visualizandoFaturamento) return
+    setSalvandoNf(true)
+    try {
+      const atualizado = await faturamentosService.desfazerNf(visualizandoFaturamento.id)
+      setVisualizandoFaturamento(atualizado)
+      setNfForm({ nf_numero: '', nf_serie: '', nf_data_emissao: '', nf_valor: '' })
+      setFaturamentos((prev) => prev.map((f) => (f.id === atualizado.id ? atualizado : f)))
+      toast.success(
+        `Lançamento da NF removido — faturamento ${atualizado.numero} voltou para Pendente.`,
+      )
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao desfazer o lançamento da NF.')
+    } finally {
+      setSalvandoNf(false)
     }
   }
 
@@ -464,29 +556,49 @@ export default function FaturamentosPage() {
                       </TableCell>
 
                       <TableCell>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(fat)}
-                          disabled={alterandoStatusId === fat.id}
-                          className="group focus:outline-none"
-                          title="Clique para alternar o status"
-                        >
-                          {isEmitido ? (
-                            <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] gap-1 cursor-pointer transition-colors shadow-xs">
-                              <CheckCircle2 className="h-3 w-3" />
+                        {isEmitido && fat.nf_numero ? (
+                          /* Fiscal F3 — NF lançada: badge fixo com os dados da nota */
+                          <div>
+                            <Badge
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] gap-1 shadow-xs"
+                              title={`NF ${fat.nf_numero}${fat.nf_serie ? '/' + fat.nf_serie : ''} lançada — edite nos detalhes`}
+                            >
+                              <FileCheck2 className="h-3 w-3" />
                               Emitido
                             </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="text-amber-600 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-[11px] gap-1 cursor-pointer transition-colors"
-                            >
-                              <Clock className="h-3 w-3" />
-                              Pendente
-                            </Badge>
-                          )}
-                        </button>
-                        {isEmitido && fat.data_emissao && (
+                            <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                              NF {fat.nf_numero}
+                              {fat.nf_serie ? `/${fat.nf_serie}` : ''}
+                              {fat.nf_data_emissao
+                                ? ` — ${fat.nf_data_emissao.split('-').reverse().join('/')}`
+                                : ''}
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(fat)}
+                            disabled={alterandoStatusId === fat.id}
+                            className="group focus:outline-none"
+                            title="Clique para alternar o status"
+                          >
+                            {isEmitido ? (
+                              <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] gap-1 cursor-pointer transition-colors shadow-xs">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Emitido
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-amber-600 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 text-[11px] gap-1 cursor-pointer transition-colors"
+                              >
+                                <Clock className="h-3 w-3" />
+                                Pendente
+                              </Badge>
+                            )}
+                          </button>
+                        )}
+                        {isEmitido && !fat.nf_numero && fat.data_emissao && (
                           <div className="text-[10px] text-muted-foreground mt-0.5">
                             Emissão: {fat.data_emissao}
                           </div>
@@ -587,7 +699,12 @@ export default function FaturamentosPage() {
                     Proposta {visualizandoFaturamento.proposta_numero || '—'}
                   </Badge>
                   {visualizandoFaturamento.status === 'emitido' ? (
-                    <Badge className="bg-emerald-600 text-white text-xs">Emitido</Badge>
+                    <Badge className="bg-emerald-600 text-white text-xs gap-1">
+                      <FileCheck2 className="h-3 w-3" />
+                      {visualizandoFaturamento.nf_numero
+                        ? `Emitido · NF ${visualizandoFaturamento.nf_numero}${visualizandoFaturamento.nf_serie ? '/' + visualizandoFaturamento.nf_serie : ''}`
+                        : 'Emitido'}
+                    </Badge>
                   ) : (
                     <Badge
                       variant="outline"
@@ -925,6 +1042,105 @@ export default function FaturamentosPage() {
                 </div>
               )}
 
+              {/* Fiscal F3 — NF Emitida (só admin): lançamento/correção dos dados da nota */}
+              {isAdmin && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <FileCheck2 className="h-4 w-4 text-primary" />
+                      NF Emitida pelo Contador
+                    </h4>
+                    {visualizandoFaturamento.nf_numero ? (
+                      <span className="text-[10px] text-emerald-700 dark:text-emerald-400 font-medium">
+                        Lançada — editável abaixo
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">Não lançada</span>
+                    )}
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border space-y-3">
+                    {!visualizandoFaturamento.nf_numero && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Ao lançar os dados da NF, o faturamento passa para{' '}
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                          Emitido
+                        </span>{' '}
+                        e entra no Livro de Saídas (página Fiscal).
+                      </p>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Número da NF</Label>
+                        <Input
+                          value={nfForm.nf_numero}
+                          onChange={(e) => setNfForm((f) => ({ ...f, nf_numero: e.target.value }))}
+                          placeholder="1234"
+                          className="h-8 font-mono text-xs"
+                          maxLength={20}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Série</Label>
+                        <Input
+                          value={nfForm.nf_serie}
+                          onChange={(e) => setNfForm((f) => ({ ...f, nf_serie: e.target.value }))}
+                          placeholder="1"
+                          className="h-8 font-mono text-xs"
+                          maxLength={10}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Data de emissão</Label>
+                        <Input
+                          type="date"
+                          value={nfForm.nf_data_emissao}
+                          onChange={(e) =>
+                            setNfForm((f) => ({ ...f, nf_data_emissao: e.target.value }))
+                          }
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px]">Valor total da nota</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={nfForm.nf_valor}
+                          onChange={(e) => setNfForm((f) => ({ ...f, nf_valor: e.target.value }))}
+                          placeholder="0,00"
+                          className="h-8 text-right font-mono text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] text-muted-foreground">
+                        O sistema não emite NF-e — registra apenas os dados da nota lançada.
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={salvarNf}
+                        disabled={salvandoNf}
+                        className="gap-1.5 text-xs"
+                      >
+                        {salvandoNf ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Save className="h-3.5 w-3.5" />
+                        )}
+                        {visualizandoFaturamento.nf_numero
+                          ? 'Corrigir lançamento'
+                          : 'Lançar NF Emitida'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Observações */}
               {visualizandoFaturamento.observacoes && (
                 <div className="p-3 rounded-md bg-muted/20 border border-border text-xs text-muted-foreground">
@@ -949,28 +1165,43 @@ export default function FaturamentosPage() {
 
           <DialogFooter className="pt-3 border-t border-border flex items-center justify-between sm:justify-between">
             <div className="flex items-center gap-2">
-              {visualizandoFaturamento && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleToggleStatus(visualizandoFaturamento)}
-                  disabled={alterandoStatusId === visualizandoFaturamento.id}
-                  className="text-xs gap-1.5"
-                >
-                  {visualizandoFaturamento.status === 'emitido' ? (
-                    <>
-                      <Clock className="h-3.5 w-3.5 text-amber-600" />
-                      Marcar como Pendente
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                      Marcar como Emitido
-                    </>
-                  )}
-                </Button>
-              )}
+              {visualizandoFaturamento &&
+                (visualizandoFaturamento.status === 'emitido' &&
+                visualizandoFaturamento.nf_numero ? (
+                  /* Fiscal F3 — NF lançada: só desfaz pelo lançamento (não pelo toggle) */
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={desfazerNf}
+                    disabled={salvandoNf}
+                    className="text-xs gap-1.5"
+                  >
+                    <Clock className="h-3.5 w-3.5 text-amber-600" />
+                    Desfazer lançamento da NF
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleToggleStatus(visualizandoFaturamento)}
+                    disabled={alterandoStatusId === visualizandoFaturamento.id}
+                    className="text-xs gap-1.5"
+                  >
+                    {visualizandoFaturamento.status === 'emitido' ? (
+                      <>
+                        <Clock className="h-3.5 w-3.5 text-amber-600" />
+                        Marcar como Pendente
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        Marcar como Emitido
+                      </>
+                    )}
+                  </Button>
+                ))}
             </div>
 
             <div className="flex items-center gap-2">
