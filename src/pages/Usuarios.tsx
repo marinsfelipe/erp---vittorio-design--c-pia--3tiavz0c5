@@ -48,9 +48,10 @@ import {
   Lock,
   User,
   Shield,
+  Percent,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatDateTime } from '@/utils/formatters'
+import { formatDateTime, formatPercent } from '@/utils/formatters'
 
 export default function UsuariosPage() {
   const { user } = useAuth()
@@ -151,6 +152,47 @@ export default function UsuariosPage() {
     } catch (err: any) {
       console.error(err)
       toast.error(err?.message || 'Erro ao excluir usuário.')
+    }
+  }
+
+  const handleAbrirPercentual = (u: UsuarioPerfil) => {
+    setPercentualTarget(u)
+    setValorPercentual(
+      u.percentual_comissao != null ? String(u.percentual_comissao).replace('.', ',') : '',
+    )
+  }
+
+  const handleSalvarPercentual = async () => {
+    if (!percentualTarget) return
+    const bruto = valorPercentual.trim()
+    let percentual: number | null = null
+    if (bruto !== '') {
+      const p = Number(bruto.replace(',', '.'))
+      if (isNaN(p) || p < 0 || p > 100) {
+        toast.error('Percentual de comissão inválido (use um valor entre 0 e 100).')
+        return
+      }
+      percentual = p
+    }
+    setPercentualLoading(true)
+    try {
+      await usuariosService.setPercentualComissao(
+        percentualTarget.id,
+        percentualTarget.user,
+        percentual,
+      )
+      toast.success(
+        percentual != null
+          ? `Percentual de comissão de ${percentualTarget.nome} salvo (${percentual}%).`
+          : `Percentual de comissão de ${percentualTarget.nome} removido.`,
+      )
+      setPercentualTarget(null)
+      await loadData()
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao salvar o percentual de comissão.')
+    } finally {
+      setPercentualLoading(false)
     }
   }
 
@@ -371,6 +413,7 @@ export default function UsuariosPage() {
                 <TableHead>Nome</TableHead>
                 <TableHead>E-mail</TableHead>
                 <TableHead>Perfil</TableHead>
+                <TableHead>Comissão</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Data de Cadastro</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
@@ -438,6 +481,9 @@ export default function UsuariosPage() {
                         </select>
                       )}
                     </TableCell>
+                    <TableCell className="text-xs">
+                      {u.percentual_comissao != null ? formatPercent(u.percentual_comissao) : '—'}
+                    </TableCell>
                     <TableCell>
                       <StatusBadge status={u.status} />
                     </TableCell>
@@ -480,6 +526,16 @@ export default function UsuariosPage() {
                         <Button
                           size="icon"
                           variant="ghost"
+                          className="h-8 w-8 text-purple-600 hover:text-purple-700 hover:bg-purple-50 dark:hover:bg-purple-950"
+                          title="Percentual de comissão"
+                          onClick={() => handleAbrirPercentual(u)}
+                        >
+                          <Percent className="h-4 w-4" />
+                        </Button>
+
+                        <Button
+                          size="icon"
+                          variant="ghost"
                           className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
                           title="Redefinir senha temporária"
                           onClick={() => {
@@ -509,7 +565,7 @@ export default function UsuariosPage() {
 
               {lista.length === 0 && !isLoading && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-xs text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-xs text-muted-foreground py-8">
                     Nenhum usuário cadastrado.
                   </TableCell>
                 </TableRow>
@@ -618,6 +674,28 @@ export default function UsuariosPage() {
               </p>
             </div>
 
+            <div className="space-y-1.5">
+              <Label htmlFor="novo-user-percentual">Percentual de comissão (%)</Label>
+              <div className="relative">
+                <Percent className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="novo-user-percentual"
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.01"
+                  placeholder="Ex: 2,5 (usado para gerar as comissões de vendas)"
+                  className="pl-9"
+                  value={novoPercentual}
+                  onChange={(e) => setNovoPercentual(e.target.value)}
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Usado no cálculo da comissão quando uma proposta do vendedor é marcada como
+                &quot;Vendida&quot;. Deixe em branco para não gerar comissões.
+              </p>
+            </div>
+
             <DialogFooter className="pt-3">
               <Button
                 type="button"
@@ -685,6 +763,64 @@ export default function UsuariosPage() {
               </Button>
               <Button type="submit" disabled={resetLoading}>
                 {resetLoading ? 'Salvando...' : 'Salvar Nova Senha'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo do Administrador para Percentual de Comissão */}
+      <Dialog open={!!percentualTarget} onOpenChange={(open) => !open && setPercentualTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Percent className="h-5 w-5 text-primary" />
+              Percentual de Comissão
+            </DialogTitle>
+            <DialogDescription>
+              Defina o percentual de <strong>{percentualTarget?.nome}</strong> (
+              {percentualTarget?.email}). Ele é aplicado sobre o valor líquido da proposta quando
+              ela é marcada como &quot;Vendida&quot;.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              handleSalvarPercentual()
+            }}
+            className="space-y-3 py-2"
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="percentual-comissao">Percentual (%)</Label>
+              <Input
+                id="percentual-comissao"
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                placeholder="Ex: 2,5 — deixe vazio para remover"
+                value={valorPercentual}
+                onChange={(e) => setValorPercentual(e.target.value)}
+                autoFocus
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Valor entre 0 e 100. Vazio remove o percentual (o vendedor deixa de gerar
+                comissões).
+              </p>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPercentualTarget(null)}
+                disabled={percentualLoading}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={percentualLoading}>
+                {percentualLoading ? 'Salvando...' : 'Salvar Percentual'}
               </Button>
             </DialogFooter>
           </form>

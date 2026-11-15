@@ -143,7 +143,7 @@ export default function ComissoesPage() {
     exportarComissoesXlsx(comissoesFiltradas, isAdmin ? 'Comissões' : 'Minhas Comissões')
   }
 
-  const nomeVendedor = (c: Comissao) => c.expand?.vendedor?.name || c.vendedor_nome || '—'
+  const nomeVendedor = (c: Comissao) => c.expand?.vendedor?.name || '—'
 
   return (
     <div className="p-4 md:p-6 space-y-6">

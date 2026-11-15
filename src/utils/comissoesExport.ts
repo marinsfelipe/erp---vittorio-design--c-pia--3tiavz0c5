@@ -12,7 +12,7 @@ export function exportarComissoesXlsx(comissoes: Comissao[], titulo: string) {
   const wb = XLSX.utils.book_new()
 
   const linhas = comissoes.map((c) => ({
-    Vendedor: c.expand?.vendedor?.name || c.vendedor_nome || '—',
+    Vendedor: c.expand?.vendedor?.name || '—',
     Proposta: c.proposta_numero || '—',
     Cliente: c.cliente_nome || '—',
     'Valor base (R$)': Number((Number(c.valor_base) || 0).toFixed(2)),

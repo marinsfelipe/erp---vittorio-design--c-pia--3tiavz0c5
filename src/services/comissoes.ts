@@ -16,6 +16,7 @@ export const comissoesService = {
     return (await pb.collection('comissoes').getFullList({
       filter: partes.join(' && '),
       sort: '-created',
+      expand: 'vendedor',
       $cancelKey: 'comissoes-lista',
     })) as unknown as Comissao[]
   },
@@ -167,12 +168,10 @@ export async function calcularDREMensal(ano: number, mes: number): Promise<DREMe
     .reduce((s, c) => s + (Number(c.valor) || 0), 0)
 
   // ---- Comissões ----------------------------------------------------------
-  const comissoesTodas = (await pb
-    .collection('comissoes')
-    .getFullList({
-      filter: "status != 'cancelada'",
-      $cancelKey: 'dre-comissoes',
-    })) as unknown as Array<{
+  const comissoesTodas = (await pb.collection('comissoes').getFullList({
+    filter: "status != 'cancelada'",
+    $cancelKey: 'dre-comissoes',
+  })) as unknown as Array<{
     proposta: string
     valor: number
     status: string
