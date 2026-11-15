@@ -41,6 +41,12 @@ routerAdd(
     if (perfil !== 'admin') {
       throw new ApiError(403, 'Apenas administradores podem executar a classificação de NCMs.')
     }
+    // user_id do agente precisa ser um registro REAL de users (runtime exige).
+    // Capturado ANTES do timer de segundo plano.
+    const userId = auth.id || ''
+    if (!userId) {
+      throw new ApiError(401, 'Autenticação necessária.')
+    }
 
     // Se já existe um lote em andamento, rejeita novo disparo.
     try {
@@ -149,7 +155,12 @@ routerAdd(
         componentes: comps,
       })
 
-      const resposta = $ai.agents.run('classificador-ncm', payload)
+      // Agente nativo Skip Cloud: $ai.agent(slug).chat (síncrono no JSVM).
+      // $ai.agents.run NÃO existe — causava ReferenceError (erro 500 genérico).
+      const resposta = $ai.agent('classificador-ncm').chat({
+        user_id: userId,
+        message: payload,
+      })
       let texto = ''
       if (resposta === null || resposta === undefined) {
         return { erro: 'Agente não respondeu' }
@@ -157,7 +168,7 @@ routerAdd(
       if (typeof resposta === 'string') {
         texto = resposta
       } else {
-        texto = resposta.answer || resposta.response || resposta.text || resposta.output || ''
+        texto = resposta.content || resposta.answer || resposta.response || resposta.text || ''
         if (!texto && typeof resposta === 'object') {
           try {
             texto = JSON.stringify(resposta)

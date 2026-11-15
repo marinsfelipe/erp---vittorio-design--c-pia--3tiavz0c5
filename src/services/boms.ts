@@ -13,6 +13,25 @@ export const bomsService = {
     return await pb.collection('boms').getOne<Bom>(id)
   },
 
+  /**
+   * Busca TODOS os itens de todos os BOMs em uma única listagem (paginada pelo
+   * SDK) e agrupa por bom_id no cliente. Evita a rajada de 1 request por BOM
+   * (Promise.all de getItems), que estoura o rate limit (429) do backend e
+   * derruba o carregamento da página /boms.
+   */
+  async getAllItemsGrouped(): Promise<Record<string, BomItem[]>> {
+    const todos = await pb.collection('bom_items').getFullList<BomItem>({
+      sort: 'bom_id,ordem,created',
+    })
+    const map: Record<string, BomItem[]> = {}
+    for (const it of todos) {
+      const key = it.bom_id
+      if (!map[key]) map[key] = []
+      map[key].push(it)
+    }
+    return map
+  },
+
   async create(data: Omit<Bom, 'id' | 'created' | 'updated'>): Promise<Bom> {
     return await pb.collection('boms').create<Bom>(data)
   },

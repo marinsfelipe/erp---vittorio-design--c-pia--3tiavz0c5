@@ -70,35 +70,31 @@ export default function BomsPage() {
       const defaultMargem = paramsMap['margem_alvo'] ?? 28.0
       setDefaultParams({ overhead: defaultOverhead, margem: defaultMargem })
 
-      // Carregar itens para cada BOM para calcular o custo consolidado
-      const bomsWithStats: BomWithStats[] = await Promise.all(
-        allBoms.map(async (bom) => {
-          let items: BomItem[] = []
-          try {
-            items = await bomsService.getItems(bom.id)
-          } catch (e) {
-            console.error('Erro ao buscar itens do bom:', bom.id, e)
-          }
+      // Carregar todos os itens em UMA listagem (evita rajada de 1 request por
+      // BOM, que estoura o rate limit do backend — 429 — e derruba a página)
+      const itemsMap = await bomsService.getAllItemsGrouped()
 
-          // Custo consolidado: rolagem recursiva da árvore multi-nível
-          const custoTotal = calcularCustoConsolidado(montarArvore(bom, items).root)
+      const bomsWithStats: BomWithStats[] = allBoms.map((bom) => {
+        const items: BomItem[] = itemsMap[bom.id] || []
 
-          const overhead =
-            bom.overhead_percentual !== undefined ? bom.overhead_percentual : defaultOverhead
-          const margem = bom.margem_percentual !== undefined ? bom.margem_percentual : defaultMargem
-          const precoSugerido = calcularMarkupDivisor(
-            custoTotal,
-            montarPercentuais(paramsMap, { overhead, margem }),
-          ).precoVenda
+        // Custo consolidado: rolagem recursiva da árvore multi-nível
+        const custoTotal = calcularCustoConsolidado(montarArvore(bom, items).root)
 
-          return {
-            ...bom,
-            itemCount: items.length,
-            custoTotal,
-            precoSugerido,
-          }
-        }),
-      )
+        const overhead =
+          bom.overhead_percentual !== undefined ? bom.overhead_percentual : defaultOverhead
+        const margem = bom.margem_percentual !== undefined ? bom.margem_percentual : defaultMargem
+        const precoSugerido = calcularMarkupDivisor(
+          custoTotal,
+          montarPercentuais(paramsMap, { overhead, margem }),
+        ).precoVenda
+
+        return {
+          ...bom,
+          itemCount: items.length,
+          custoTotal,
+          precoSugerido,
+        }
+      })
 
       setBoms(bomsWithStats)
     } catch (err: any) {
