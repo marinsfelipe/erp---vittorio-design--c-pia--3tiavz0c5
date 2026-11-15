@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T15:43:26.715Z",
+  "generatedAt": "2026-11-15T17:44:06.952Z",
   "collections": [
     {
       "name": "users",
@@ -51,6 +51,12 @@
           "required": false,
           "system": false,
           "selectValues": ["pendente", "aprovado", "bloqueado"]
+        },
+        {
+          "name": "percentual_comissao",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": [
@@ -961,6 +967,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "percentual_comissao",
+          "type": "number",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_usuarios_perfil_user ON usuarios_perfil (user)"]
@@ -1807,6 +1819,108 @@
         "CREATE INDEX idx_contas_pagar_status ON contas_pagar (status)",
         "CREATE INDEX idx_contas_pagar_vencimento ON contas_pagar (vencimento)",
         "CREATE INDEX idx_contas_pagar_ordem ON contas_pagar (ordem_compra)"
+      ]
+    },
+    {
+      "name": "comissoes",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && (@request.auth.perfil = 'admin' || vendedor = @request.auth.id)",
+        "view": "@request.auth.id != '' && (@request.auth.perfil = 'admin' || vendedor = @request.auth.id)",
+        "create": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "update": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "delete": "@request.auth.id != '' && @request.auth.perfil = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "vendedor",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "proposta",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "propostas"
+        },
+        {
+          "name": "proposta_numero",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_base",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "percentual",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["prevista", "paga", "cancelada"]
+        },
+        {
+          "name": "data_pagamento",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "criado_por",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_comissoes_vendedor ON comissoes (vendedor)",
+        "CREATE INDEX idx_comissoes_status ON comissoes (status)",
+        "CREATE INDEX idx_comissoes_proposta ON comissoes (proposta)"
       ]
     }
   ]
