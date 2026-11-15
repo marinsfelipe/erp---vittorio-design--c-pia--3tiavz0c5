@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T19:10:29.500Z",
+  "generatedAt": "2026-11-15T19:18:13.072Z",
   "collections": [
     {
       "name": "users",
@@ -198,6 +198,12 @@
           "required": false,
           "system": false,
           "autodateTriggers": ["onCreate", "onUpdate"]
+        },
+        {
+          "name": "valor_texto",
+          "type": "text",
+          "required": false,
+          "system": false
         }
       ],
       "indexes": ["CREATE UNIQUE INDEX idx_parametros_chave ON parametros (chave)"]
@@ -1952,11 +1958,11 @@
       "name": "empresa",
       "type": "base",
       "apiRules": {
-        "list": "criador = @request.auth.id",
-        "view": "criador = @request.auth.id",
-        "create": "criador = @request.auth.id",
-        "update": "criador = @request.auth.id",
-        "delete": "criador = @request.auth.id"
+        "list": "@request.auth.perfil = 'admin'",
+        "view": "@request.auth.perfil = 'admin'",
+        "create": "@request.auth.perfil = 'admin'",
+        "update": "@request.auth.perfil = 'admin'",
+        "delete": "@request.auth.perfil = 'admin'"
       },
       "fields": [
         {

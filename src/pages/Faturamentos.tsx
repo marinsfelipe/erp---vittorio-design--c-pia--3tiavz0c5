@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { faturamentosService } from '@/services/faturamentos'
+import { fiscalService } from '@/services/fiscal'
 import type { Faturamento, FaturamentoStatus } from '@/types/erp'
 import { formatBRL, formatDateTime } from '@/utils/formatters'
 import { exportarFaturamentoXlsx, exportarListaFaturamentosXlsx } from '@/utils/faturamentoExport'
@@ -39,6 +40,8 @@ import {
   Phone,
   FileText,
   AlertCircle,
+  Calculator,
+  AlertTriangle,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/AuthContext'
@@ -74,12 +77,36 @@ export default function FaturamentosPage() {
     const novoStatus: FaturamentoStatus = fat.status === 'pendente' ? 'emitido' : 'pendente'
     setAlterandoStatusId(fat.id)
     try {
-      const atualizado = await faturamentosService.updateStatus(fat.id, novoStatus)
+      let atualizado = await faturamentosService.updateStatus(fat.id, novoStatus)
       toast.success(
         novoStatus === 'emitido'
           ? `Faturamento ${fat.numero} marcado como Emitido!`
           : `Faturamento ${fat.numero} retornado para Pendente.`,
       )
+
+      // Módulo Fiscal: ao EMITIR, o backend calcula os impostos estimados
+      // conforme o regime da Empresa (hook fiscal.pb.js) e grava o snapshot.
+      // Só para admin — vendedor não vê nem dispara impostos.
+      if (novoStatus === 'emitido' && isAdmin) {
+        try {
+          const est = await fiscalService.calcularImpostos(fat.id)
+          atualizado = {
+            ...atualizado,
+            impostos_estimados: est.total,
+            valor_liquido: est.liquido,
+            regime_tributario: (est.regime || '').toLowerCase().includes('simples')
+              ? 'simples'
+              : 'presumido',
+          }
+          toast.info('Impostos estimados calculados (estimativa — apuração oficial pelo contador).')
+        } catch (errFiscal: any) {
+          console.warn('Cálculo fiscal falhou:', errFiscal)
+          toast.warning(
+            'Faturamento emitido, mas o cálculo de impostos estimados falhou. Calcule na página Fiscal.',
+          )
+        }
+      }
+
       setFaturamentos((prev) => prev.map((f) => (f.id === fat.id ? atualizado : f)))
       if (visualizandoFaturamento?.id === fat.id) {
         setVisualizandoFaturamento(atualizado)
@@ -313,6 +340,9 @@ export default function FaturamentosPage() {
                   <TableHead className="font-semibold">Proposta</TableHead>
                   <TableHead className="font-semibold">Status</TableHead>
                   <TableHead className="text-right font-semibold">Valor Total</TableHead>
+                  {isAdmin && (
+                    <TableHead className="text-right font-semibold">Impostos (est.)</TableHead>
+                  )}
                   <TableHead className="font-semibold">Data</TableHead>
                   <TableHead className="text-right font-semibold">Ações</TableHead>
                 </TableRow>
@@ -394,6 +424,23 @@ export default function FaturamentosPage() {
                       <TableCell className="text-right font-mono font-semibold text-xs text-emerald-700 dark:text-emerald-400">
                         {formatBRL(fat.valor_total || 0)}
                       </TableCell>
+
+                      {isAdmin && (
+                        <TableCell className="text-right font-mono text-xs">
+                          {isEmitido && (fat.impostos_estimados ?? 0) > 0 ? (
+                            <div>
+                              <div className="text-rose-600 dark:text-rose-400 font-semibold">
+                                {formatBRL(fat.impostos_estimados)}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                Líq.: {formatBRL(fat.valor_liquido || 0)}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      )}
 
                       <TableCell className="text-xs text-muted-foreground">
                         {fat.created ? formatDateTime(fat.created) : '—'}
@@ -619,6 +666,76 @@ export default function FaturamentosPage() {
                   </Table>
                 </div>
               </div>
+
+              {/* Card de Impostos Estimados — APENAS ADMIN (snapshot do hook fiscal) */}
+              {isAdmin && visualizandoFaturamento.status === 'emitido' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Calculator className="h-4 w-4 text-primary" />
+                      Impostos Estimados (uso interno — não vai ao cliente)
+                    </h4>
+                    {(visualizandoFaturamento.regime_tributario || '') !== '' && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-mono text-muted-foreground border-border"
+                      >
+                        Regime:{' '}
+                        {visualizandoFaturamento.regime_tributario === 'simples'
+                          ? 'Simples Nacional'
+                          : visualizandoFaturamento.regime_tributario === 'presumido'
+                            ? 'Lucro Presumido'
+                            : 'Lucro Real'}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {(visualizandoFaturamento.impostos_estimados ?? 0) > 0 ||
+                  (visualizandoFaturamento.valor_liquido ?? 0) > 0 ? (
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                          Impostos estimados
+                        </div>
+                        <div className="text-lg font-bold font-mono text-rose-700 dark:text-rose-300 mt-0.5">
+                          {formatBRL(visualizandoFaturamento.impostos_estimados || 0)}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                          Valor líquido
+                        </div>
+                        <div className="text-lg font-bold font-mono text-emerald-700 dark:text-emerald-300 mt-0.5">
+                          {formatBRL(visualizandoFaturamento.valor_liquido || 0)}
+                        </div>
+                      </div>
+                      <div className="p-3 rounded-lg bg-muted/30 border border-border">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                          Valor bruto
+                        </div>
+                        <div className="text-lg font-bold font-mono text-foreground mt-0.5">
+                          {formatBRL(visualizandoFaturamento.valor_total || 0)}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground p-3 rounded-md bg-muted/20 border border-border">
+                      Impostos ainda não calculados. Calcule na página{' '}
+                      <Link to="/fiscal" className="text-primary hover:underline font-medium">
+                        Fiscal
+                      </Link>
+                      .
+                    </p>
+                  )}
+
+                  <div className="p-2.5 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 flex items-start gap-2">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-amber-600" />
+                    <span className="text-[11px] text-amber-800 dark:text-amber-300 font-medium">
+                      ESTIMATIVA — apuração oficial pelo contador. O sistema não emite NF-e.
+                    </span>
+                  </div>
+                </div>
+              )}
 
               {/* Observações */}
               {visualizandoFaturamento.observacoes && (

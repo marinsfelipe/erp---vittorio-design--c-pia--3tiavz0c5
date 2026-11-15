@@ -43,6 +43,7 @@ export interface Parametro {
   chave: string
   nome: string
   valor_percentual: number
+  valor_texto?: string
   descricao?: string
   ordem?: number
   created?: string

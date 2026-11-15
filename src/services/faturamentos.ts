@@ -1,5 +1,8 @@
 import pb from '@/lib/pocketbase/client'
-import type { Faturamento, FaturamentoInput, FaturamentoStatus } from '@/types/erp'
+import type { Faturamento, FaturamentoStatus } from '@/types/erp'
+
+/** Payload de criação de faturamento (sem campos gerados pelo backend). */
+export type FaturamentoInput = Omit<Faturamento, 'id' | 'created' | 'updated' | 'expand'>
 
 const esc = (v: string) => v.replace(/'/g, "\\'")
 

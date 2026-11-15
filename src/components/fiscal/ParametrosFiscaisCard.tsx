@@ -23,6 +23,7 @@ import { formatBRL } from '@/utils/formatters'
 export default function ParametrosFiscaisCard() {
   const [params, setParams] = useState<Parametro[]>([])
   const [editados, setEditados] = useState<Record<string, number>>({})
+  const [editadosTexto, setEditadosTexto] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
 
@@ -54,7 +55,12 @@ export default function ParametrosFiscaisCard() {
       for (const [chave, valor] of Object.entries(editados)) {
         await parametrosService.update(chave, valor)
       }
+      for (const [chave, valor] of Object.entries(editadosTexto)) {
+        const rec = params.find((p) => p.chave === chave)
+        if (rec) await parametrosService.updateTexto(rec.id, valor)
+      }
       setEditados({})
+      setEditadosTexto({})
       toast.success('Parâmetros fiscais salvos.')
       load()
     } catch (err: any) {
@@ -82,6 +88,12 @@ export default function ParametrosFiscaisCard() {
 
   const valorDe = (chave: string): number =>
     editados[chave] ?? params.find((p) => p.chave === chave)?.valor_percentual ?? 0
+
+  const textoDe = (chave: string): string =>
+    editadosTexto[chave] ?? params.find((p) => p.chave === chave)?.valor_texto ?? ''
+
+  const setTexto = (chave: string, valor: string) =>
+    setEditadosTexto((prev) => ({ ...prev, [chave]: valor }))
 
   const ufs = [
     'AC',
@@ -113,7 +125,12 @@ export default function ParametrosFiscaisCard() {
     'TO',
   ]
 
-  const limpar = () => setEditados({})
+  const limpar = () => {
+    setEditados({})
+    setEditadosTexto({})
+  }
+
+  const totalEditados = Object.keys(editados).length + Object.keys(editadosTexto).length
 
   return (
     <Card>
@@ -136,6 +153,7 @@ export default function ParametrosFiscaisCard() {
               <TabsTrigger value="anexo2">Simples Nacional — Anexo II</TabsTrigger>
               <TabsTrigger value="presumido">Lucro Presumido</TabsTrigger>
               <TabsTrigger value="icms">ICMS por UF</TabsTrigger>
+              <TabsTrigger value="ncm">NCMs com IPI 5%</TabsTrigger>
             </TabsList>
 
             {/* ---------------- Simples Nacional (Anexo II) ---------------- */}
@@ -267,13 +285,39 @@ export default function ParametrosFiscaisCard() {
                 ))}
               </div>
             </TabsContent>
+
+            {/* --------------------- NCMs com IPI 5% ------------------------ */}
+            <TabsContent value="ncm" className="mt-4 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Códigos NCM (8 dígitos) que recebem IPI na alíquota do parâmetro "IPI por NCM (%)"
+                da aba Lucro Presumido. Separe por vírgula (ex.: 84185010, 84186990).
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Lista de NCMs</Label>
+                <Input
+                  value={textoDe('fiscal_ipi_ncm_5')}
+                  onChange={(e) => setTexto('fiscal_ipi_ncm_5', e.target.value)}
+                  placeholder="84185010, 84186990"
+                  className="h-8 text-xs font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  {
+                    textoDe('fiscal_ipi_ncm_5')
+                      .split(',')
+                      .map((c) => c.trim())
+                      .filter(Boolean).length
+                  }{' '}
+                  NCM(s) cadastrado(s)
+                </p>
+              </div>
+            </TabsContent>
           </Tabs>
         )}
 
         <div className="flex items-center gap-2 mt-4">
           <Button
             onClick={salvar}
-            disabled={isSaving || Object.keys(editados).length === 0}
+            disabled={isSaving || totalEditados === 0}
             className="gap-1.5 text-xs"
           >
             <Save className="h-3.5 w-3.5" />
@@ -282,15 +326,15 @@ export default function ParametrosFiscaisCard() {
           <Button
             variant="outline"
             onClick={limpar}
-            disabled={Object.keys(editados).length === 0}
+            disabled={totalEditados === 0}
             className="gap-1.5 text-xs"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Descartar
           </Button>
-          {Object.keys(editados).length > 0 && (
+          {totalEditados > 0 && (
             <span className="text-xs text-amber-600">
-              {Object.keys(editados).length} alteração(ões) não salva(s)
+              {totalEditados} alteração(ões) não salva(s)
             </span>
           )}
         </div>

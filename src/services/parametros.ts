@@ -15,6 +15,11 @@ export const parametrosService = {
     })
   },
 
+  /** Atualiza o campo de texto (valor_texto) de um parâmetro — ex.: lista de NCMs. */
+  async updateTexto(id: string, valor_texto: string): Promise<Parametro> {
+    return await pb.collection('parametros').update<Parametro>(id, { valor_texto })
+  },
+
   async getLimiteDescontoVendedor(): Promise<number> {
     try {
       const record = await pb
