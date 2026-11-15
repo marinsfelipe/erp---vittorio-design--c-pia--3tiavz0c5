@@ -30,6 +30,8 @@ import FluxoCaixaPage from '@/pages/FluxoCaixa'
 import ComissoesPage from '@/pages/Comissoes'
 import DRESimplificadoPage from '@/pages/DRESimplificado'
 import TabelaPrecosPage from '@/pages/TabelaPrecos'
+import FiscalPage from '@/pages/Fiscal'
+import EmpresaPage from '@/pages/Empresa'
 import NotFound from '@/pages/NotFound'
 
 export default function App() {
@@ -76,6 +78,9 @@ export default function App() {
                 <Route path="/parametros" element={<ParametrosPage />} />
                 <Route path="/usuarios" element={<UsuariosPage />} />
                 <Route path="/modelos-contrato" element={<ModelosContratoPage />} />
+                {/* Módulo Fiscal — exclusivo admin */}
+                <Route path="/fiscal" element={<FiscalPage />} />
+                <Route path="/empresa" element={<EmpresaPage />} />
               </Route>
             </Route>
           </Route>

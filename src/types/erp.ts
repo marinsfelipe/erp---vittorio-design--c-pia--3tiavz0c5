@@ -438,6 +438,11 @@ export interface Faturamento {
   data_emissao?: string
   observacoes?: string
   criador: string
+  // Módulo Fiscal — snapshot dos impostos estimados (calculado pelo hook)
+  impostos_estimados?: number
+  valor_liquido?: number
+  regime_tributario?: RegimeTributario | ''
+  impostos_detalhe?: string
   expand?: {
     proposta?: Proposta
     cliente?: Cliente
@@ -447,26 +452,42 @@ export interface Faturamento {
   updated?: string
 }
 
-export interface FaturamentoInput {
-  numero: string
-  ano: number
-  sequencial: number
-  proposta?: string
-  proposta_numero?: string
-  cliente?: string
-  cliente_razao_social: string
-  cliente_cnpj?: string
-  cliente_ie?: string
-  cliente_endereco?: string
-  cliente_cidade?: string
-  cliente_uf?: string
-  cliente_contato?: string
-  cliente_email?: string
-  cliente_telefone?: string
-  produtos: FaturamentoItemProduto[]
-  valor_total: number
-  status: FaturamentoStatus
-  data_emissao?: string
-  observacoes?: string
+// ---- Módulo Fiscal (impostos estimados) ----
+export type RegimeTributario = 'simples' | 'presumido' | 'real'
+
+export interface Empresa {
+  id: string
   criador: string
+  razao_social: string
+  cnpj?: string
+  ie?: string
+  endereco?: string
+  cidade?: string
+  uf?: string
+  email?: string
+  telefone?: string
+  regime: RegimeTributario
+  created?: string
+  updated?: string
+}
+
+export interface EmpresaInput {
+  razao_social: string
+  cnpj?: string
+  ie?: string
+  endereco?: string
+  cidade?: string
+  uf?: string
+  email?: string
+  telefone?: string
+  regime: RegimeTributario
+}
+
+export interface ImpostosEstimados {
+  regime: string
+  rbt12?: number
+  impostos: Record<string, number>
+  total: number
+  liquido: number
+  aviso: string
 }

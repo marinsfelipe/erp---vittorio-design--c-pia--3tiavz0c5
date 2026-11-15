@@ -238,6 +238,18 @@ export default function Layout() {
           badge: pendentesCount > 0 ? pendentesCount : undefined,
         },
         {
+          href: '/fiscal',
+          label: 'Fiscal',
+          icon: Receipt,
+          adminOnly: true,
+        },
+        {
+          href: '/empresa',
+          label: 'Empresa',
+          icon: Building2,
+          adminOnly: true,
+        },
+        {
           href: '/parametros',
           label: 'Parâmetros Financeiros',
           icon: Sliders,
