@@ -2,9 +2,18 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { faturamentosService } from '@/services/faturamentos'
 import { fiscalService, type RespostaFiscal } from '@/services/fiscal'
-import type { Faturamento, FaturamentoStatus } from '@/types/erp'
+import type { Empresa, Faturamento, FaturamentoStatus } from '@/types/erp'
 import { formatBRL, formatDateTime } from '@/utils/formatters'
-import { exportarFaturamentoXlsx, exportarListaFaturamentosXlsx } from '@/utils/faturamentoExport'
+import {
+  ErroPendenciaFiscal,
+  exportarFaturamentoXlsx,
+  exportarListaFaturamentosXlsx,
+} from '@/utils/faturamentoExport'
+import { itensPendentesFiscais, mensagemPendenciasFiscais } from '@/utils/fiscalExportacao'
+import {
+  DialogExportacaoPendencias,
+  type DecisaoExportacao,
+} from '@/components/fiscal/DialogExportacaoPendencias'
 import { formatarCest } from '@/components/precos/CestCell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -74,6 +83,9 @@ export default function FaturamentosPage() {
     nf_valor: '',
   })
   const [salvandoNf, setSalvandoNf] = useState(false)
+  // Fiscal F4 — exportação da pré-nota com bloqueio de pendências fiscais
+  const [empresa, setEmpresa] = useState<Empresa | null>(null)
+  const [pendenciasExport, setPendenciasExport] = useState<Faturamento | null>(null)
 
   // Ao abrir os detalhes (admin), busca CFOP/CEST/ST do hook fiscal (1 request).
   const abrirDetalhes = async (fat: Faturamento) => {
@@ -233,6 +245,15 @@ export default function FaturamentosPage() {
     }
   }
 
+  // Fiscal F4 — cadastro da Empresa (emissor da pré-nota; 1 registro).
+  useEffect(() => {
+    if (!isAdmin)
+      return fiscalService
+        .getEmpresa()
+        .then(setEmpresa)
+        .catch((err) => console.warn('Fiscal: falha ao carregar Empresa:', err))
+  }, [isAdmin])
+
   useEffect(() => {
     load()
   }, [])
@@ -298,14 +319,48 @@ export default function FaturamentosPage() {
     }
   }
 
+  // Fiscal F4 — exportação da PRÉ-NOTA com todas as colunas fiscais.
+  // Bloqueio: item sem NCM = pendência fiscal. Vendedor NÃO exporta de forma
+  // alguma nessa condição; admin pode liberar no diálogo de confirmação.
   const handleExportarIndividual = (fat: Faturamento) => {
+    const pendentes = itensPendentesFiscais(fat)
+    if (pendentes.length > 0) {
+      if (!isAdmin) {
+        toast.error(
+          'Exportação bloqueada: o faturamento tem item(s) pendente(s) fiscal(is) (sem NCM). ' +
+            'Apenas um administrador pode liberar a exportação.',
+        )
+        return
+      }
+      setPendenciasExport(fat)
+      return
+    }
+    executarExportacao(fat, false)
+  }
+
+  const executarExportacao = (fat: Faturamento, liberarPendencias: boolean) => {
     try {
-      exportarFaturamentoXlsx(fat)
+      exportarFaturamentoXlsx(fat, {
+        empresa,
+        liberarPendencias,
+      })
       toast.success(`Planilha ${fat.numero} exportada com sucesso!`)
     } catch (err: any) {
       console.error(err)
-      toast.error('Erro ao gerar planilha .xlsx.')
+      if (err instanceof ErroPendenciaFiscal) {
+        toast.error(mensagemPendenciasFiscais(err.itens))
+      } else {
+        toast.error('Erro ao gerar planilha .xlsx.')
+      }
     }
+  }
+
+  // Fiscal F4 — decisão do admin no diálogo de pendências.
+  const decidirExportacao = (decisao: DecisaoExportacao) => {
+    const fat = pendenciasExport
+    setPendenciasExport(null)
+    if (!fat) return
+    if (decisao === 'exportar') executarExportacao(fat, true)
   }
 
   const handleExportarLista = () => {
@@ -1229,6 +1284,16 @@ export default function FaturamentosPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Fiscal F4 — bloqueio de exportação com pendências fiscais (liberação só admin) */}
+      {pendenciasExport && (
+        <DialogExportacaoPendencias
+          open={Boolean(pendenciasExport)}
+          onOpenChange={(open) => !open && setPendenciasExport(null)}
+          itens={pendenciasExport.produtos || []}
+          onExportarMesmoAssim={() => decidirExportacao('exportar')}
+        />
+      )}
     </div>
   )
 }

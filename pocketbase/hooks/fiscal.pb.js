@@ -107,6 +107,23 @@ routerAdd(
       return mesmaUf ? '5.102' : '6.102'
     }
 
+    // Fiscal F4 — itens SEM NCM (pendente fiscal) para o bloqueio de export.
+    function itensPendentes(produtos, ncmPorSku) {
+      const out = []
+      for (const p of produtos) {
+        const sku = String(p.sku || '')
+        const ncmItem = String(p.ncm || '').trim()
+        const ncmBom = String(ncmPorSku[sku] || '').trim()
+        if (!ncmItem && !ncmBom) {
+          out.push({
+            sku: sku,
+            descricao: String(p.descricao || p.nome_produto || '').trim(),
+          })
+        }
+      }
+      return out
+    }
+
     function arred(v) {
       return Math.round(v * 100) / 100
     }
@@ -307,6 +324,25 @@ routerAdd(
       } catch (_) {}
     }
 
+    // Fiscal F4: unidade e origem do NCM por SKU (mesma listagem única, sem
+    // rajada) — a planilha da pré-nota usa essas colunas.
+    const unidadePorSku = {}
+    const origemPorSku = {}
+    if (skus.length > 0) {
+      try {
+        const filtro =
+          'sku IN (' + skus.map((s) => "'" + s.replace(/'/g, "''") + "'").join(',') + ')'
+        const lista = app.findRecordsByFilter('boms', filtro, '', 0, 0)
+        for (const b of lista) {
+          const sku = b.getString('sku')
+          const un = (b.getString('unidade') || '').trim()
+          if (un) unidadePorSku[sku] = un
+          const og = (b.getString('ncm_origem') || '').trim()
+          if (og) origemPorSku[sku] = og
+        }
+      } catch (_) {}
+    }
+
     const resultado =
       regime === 'simples'
         ? calcularSimples(valorTotal, fat)
@@ -374,6 +410,21 @@ routerAdd(
           produtosAlterados = true
         }
       }
+      // Fiscal F4: grava unidade/origem do NCM nos itens do JSON `produtos`
+      // quando o cadastro do BOM tem o dado — a planilha lê por item.
+      for (const p of produtos) {
+        const sku = String(p.sku || '')
+        const un = String(unidadePorSku[sku] || '').trim()
+        const og = String(origemPorSku[sku] || '').trim()
+        if (un && p.unidade !== un) {
+          p.unidade = un
+          produtosAlterados = true
+        }
+        if (og && p.ncm_origem !== og) {
+          p.ncm_origem = og
+          produtosAlterados = true
+        }
+      }
       if (produtosAlterados) {
         fat.set('produtos', JSON.stringify(produtos))
       }
@@ -411,6 +462,10 @@ routerAdd(
       st_itens: itensSt,
       cest: cestPorSku,
       cest_sugerido: '21.007.00',
+      // ---- Fiscal F4: colunas fiscais por item + pendências (bloqueio) ----
+      unidade: unidadePorSku,
+      ncm_origem: origemPorSku,
+      pendentes_fiscais: itensPendentes(produtos, ncmPorSku),
       aviso: 'ESTIMATIVA — apuração oficial pelo contador',
     })
   },

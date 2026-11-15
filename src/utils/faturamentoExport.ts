@@ -1,25 +1,87 @@
 import * as XLSX from 'xlsx'
-import type { Faturamento } from '@/types/erp'
-
+import type { Empresa, Faturamento, OrigemNcm } from '@/types/erp'
+import {
+  csosnOuCstPorRegime,
+  itensPendentesFiscais,
+  linhasEmissor,
+  mensagemPendenciasFiscais,
+  rotuloOrigemNcm,
+} from '@/utils/fiscalExportacao'
 /**
- * Sanitiza texto para uso em nomes de arquivo
+ * Fiscal F4 — Exportações .xlsx para o escritório contábil.
+ * - Pré-nota: dados do EMISSOR (Empresa), dados fiscais do cliente e por item
+ *   NCM/origem/CSOSN-CST/unidade/CFOP/CEST + impostos estimados (aba própria).
+ * - Livro de Saídas mensal: mesmas colunas fiscais, com impostos estimados.
+ * O sistema NÃO emite NF-e — só organiza os dados para o contador emitir.
  */
+
+/** Sanitiza texto para uso em nomes de arquivo */
 function sanitizeFilename(text: string): string {
   return text.replace(/[/\\?%*:|"<>]/g, '-').replace(/\s+/g, '_')
 }
 
-/**
- * Exporta um faturamento individual em planilha .xlsx com dados fiscais do cliente
- * e lista discriminada de produtos/valores de venda (sem custos) para envio à contabilidade.
- */
-export function exportarFaturamentoXlsx(fat: Faturamento) {
-  const wb = XLSX.utils.book_new()
+/** Erro de bloqueio fiscal — carrega a lista de itens pendentes. */
+export class ErroPendenciaFiscal extends Error {
+  itens: string[]
+  constructor(itens: string[]) {
+    super('PENDENCIA_FISCAL')
+    this.name = 'ErroPendenciaFiscal'
+    this.itens = itens
+  }
+}
 
-  // 1. Aba Resumo / Dados Fiscais
-  const dadosCadastrais = [
+/** Opções da exportação da pré-nota (F4). */
+export interface OptsPreNota {
+  /** Cadastro da Empresa (emissor) — coleção `empresa`, 1 registro. */
+  empresa: Empresa | null
+  /** Unidade por SKU (do cadastro do BOM, via hook fiscal). */
+  unidadePorSku?: Record<string, string>
+  /** Origem do NCM por SKU (manual/automatica/sugestao, via hook fiscal). */
+  origemPorSku?: Record<string, OrigemNcm | ''>
+  /** Admin liberou a exportação mesmo com item pendente fiscal. */
+  liberarPendencias: boolean
+}
+
+/**
+ * Fiscal F4 — monta e baixa a planilha da PRÉ-NOTA com todas as colunas
+ * fiscais. Bloqueia (ErroPendenciaFiscal) quando algum item está sem NCM e
+ * `liberarPendencias` não veio do admin.
+ */
+export function exportarPreNotaXlsx(fat: Faturamento, opts: OptsPreNota) {
+  // ---------- Bloqueio: item "pendente fiscal" (sem NCM) ----------
+  const pendentes = itensPendentesFiscais(fat)
+  const temPendencias = pendentes.length > 0
+  if (temPendencias && !opts.liberarPendencias) {
+    throw new ErroPendenciaFiscal(
+      pendentes.map((p) => `${p.sku || 'sem SKU'} — ${p.descricao || 'sem descrição'}`),
+    )
+  }
+
+  const wb = XLSX.utils.book_new()
+  const csosn = csosnOuCstPorRegime(opts.empresa?.regime)
+  const regimeTexto =
+    opts.empresa?.regime === 'presumido'
+      ? 'Lucro Presumido'
+      : opts.empresa?.regime === 'real'
+        ? 'Lucro Real'
+        : 'Simples Nacional'
+
+  // ---------- 1. Aba "Dados Fiscais" (emissor + cliente + totais) ----------
+  const dadosFiscais: Array<{ Campo: string; Valor: string | number }> = [
+    ...linhasEmissor(opts.empresa || {}),
+    { Campo: '—', Valor: '' },
     { Campo: 'Número da Pré-Nota / Faturamento', Valor: fat.numero },
     { Campo: 'Status', Valor: fat.status === 'emitido' ? 'EMITIDO' : 'PENDENTE' },
-    { Campo: 'Data de Emissão da NF', Valor: fat.data_emissao || 'Pendente' },
+    {
+      Campo: 'Data de Emissão da NF',
+      Valor: fat.nf_data_emissao || fat.data_emissao || 'Pendente',
+    },
+    {
+      Campo: 'NF lançada (nº/série)',
+      Valor: fat.nf_numero
+        ? `${fat.nf_numero}${fat.nf_serie ? '/' + fat.nf_serie : ''}`
+        : 'Não lançada',
+    },
     {
       Campo: 'Data de Geração do Registro',
       Valor: fat.created ? fat.created.substring(0, 10) : '',
@@ -35,32 +97,101 @@ export function exportarFaturamentoXlsx(fat: Faturamento) {
     { Campo: 'E-mail', Valor: fat.cliente_email || '—' },
     { Campo: 'Telefone', Valor: fat.cliente_telefone || '—' },
     { Campo: 'CFOP', Valor: fat.cfop || '—' },
+    { Campo: 'Regime / CSOSN-CST aplicado', Valor: `${csosn.chave} ${csosn.valor}` },
     { Campo: 'Valor Total Faturado (R$)', Valor: fat.valor_total || 0 },
+    {
+      Campo: 'Impostos Estimados (R$)',
+      Valor: Number((Number(fat.impostos_estimados) || 0).toFixed(2)),
+    },
+    {
+      Campo: 'Valor Líquido Estimado (R$)',
+      Valor: Number((Number(fat.valor_liquido) || 0).toFixed(2)),
+    },
     { Campo: 'Observações Fiscais', Valor: fat.observacoes || 'Nenhuma' },
   ]
+  if (temPendencias) {
+    dadosFiscais.push(
+      { Campo: '—', Valor: '' },
+      {
+        Campo: 'ATENÇÃO — PENDÊNCIAS FISCAIS (LIBERADAS PELO ADMIN)',
+        Valor: pendentes
+          .map((p) => `${p.sku || 'sem SKU'} — ${p.descricao || 'sem descrição'}`)
+          .join('; '),
+      },
+    )
+  }
 
-  const wsDados = XLSX.utils.json_to_sheet(dadosCadastrais)
-  wsDados['!cols'] = [{ wch: 35 }, { wch: 60 }]
+  const wsDados = XLSX.utils.json_to_sheet(dadosFiscais)
+  wsDados['!cols'] = [{ wch: 46 }, { wch: 70 }]
   XLSX.utils.book_append_sheet(wb, wsDados, 'Dados Fiscais')
 
-  // 2. Aba Itens / Produtos (Apenas preços de venda, NUNCA custos)
+  // ---------- 2. Aba "Itens para NF" — todas as colunas fiscais ----------
   const itens = (fat.produtos || []).map((prod, idx) => ({
     Item: idx + 1,
     'Código / SKU': prod.sku || '—',
     'Descrição do Produto / Equipamento': prod.descricao,
-    ...(fat.cfop ? { CFOP: fat.cfop } : {}),
-    ...(prod.ncm ? { NCM: prod.ncm } : {}),
-    ...(prod.cest ? { CEST: prod.cest } : {}),
+    NCM: (prod.ncm || '').trim(),
+    'Origem do NCM': rotuloOrigemNcm(opts.origemPorSku?.[prod.sku || '']),
+    [csosn.chave]: csosn.valor,
+    Unidade: opts.unidadePorSku?.[prod.sku || ''] || 'UN',
     Quantidade: prod.quantidade,
-    'Valor Unitário de Venda (R$)': prod.valor_unitario,
-    'Valor Total do Item (R$)': prod.valor_total,
+    'Valor Unitário de Venda (R$)': Number((Number(prod.valor_unitario) || 0).toFixed(2)),
+    'Valor Total do Item (R$)': Number((Number(prod.valor_total) || 0).toFixed(2)),
+    ...(fat.cfop ? { CFOP: fat.cfop } : {}),
+    ...(prod.cest ? { CEST: prod.cest } : {}),
   }))
-
   const wsItens = XLSX.utils.json_to_sheet(itens)
-  wsItens['!cols'] = [{ wch: 6 }, { wch: 18 }, { wch: 45 }, { wch: 12 }, { wch: 25 }, { wch: 25 }]
+  wsItens['!cols'] = [
+    { wch: 6 },
+    { wch: 18 },
+    { wch: 45 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 38 },
+    { wch: 9 },
+    { wch: 11 },
+    { wch: 25 },
+    { wch: 25 },
+    { wch: 8 },
+    { wch: 12 },
+  ]
   XLSX.utils.book_append_sheet(wb, wsItens, 'Itens para NF')
 
-  const filename = `Faturamento_${sanitizeFilename(fat.numero)}_${sanitizeFilename(fat.cliente_razao_social)}.xlsx`
+  // ---------- 3. Aba "Impostos Estimados" (impostos_detalhe do hook F1) ----
+  let detalhe: Record<string, unknown> = {}
+  try {
+    detalhe = fat.impostos_detalhe ? JSON.parse(fat.impostos_detalhe) : {}
+  } catch {
+    detalhe = {}
+  }
+  const detalheLinhas = Object.entries(detalhe).map(([k, v]) => ({
+    Indicador: k,
+    Valor: typeof v === 'number' ? Number((v as number).toFixed(2)) : String(v),
+  }))
+  const wsImpostos = XLSX.utils.json_to_sheet([
+    { Indicador: 'Regime', Valor: regimeTexto },
+    { Indicador: 'Valor Total (R$)', Valor: Number((Number(fat.valor_total) || 0).toFixed(2)) },
+    {
+      Indicador: 'Impostos Estimados (R$)',
+      Valor: Number((Number(fat.impostos_estimados) || 0).toFixed(2)),
+    },
+    {
+      Indicador: 'Valor Líquido Estimado (R$)',
+      Valor: Number((Number(fat.valor_liquido) || 0).toFixed(2)),
+    },
+    ...(detalheLinhas.length > 0 ? [{ Indicador: '—', Valor: '' }] : []),
+    ...detalheLinhas,
+    { Indicador: '', Valor: '' },
+    {
+      Indicador: 'NOTA',
+      Valor:
+        'ESTIMATIVA gerada pelo ERP — apuração oficial pelo escritório contábil. O sistema NÃO emite NF-e.',
+    },
+  ])
+  wsImpostos['!cols'] = [{ wch: 32 }, { wch: 28 }]
+  XLSX.utils.book_append_sheet(wb, wsImpostos, 'Impostos Estimados')
+
+  const filename = `Pre_Nota_${sanitizeFilename(fat.numero)}_${sanitizeFilename(fat.cliente_razao_social)}.xlsx`
   XLSX.writeFile(wb, filename)
 }
 
