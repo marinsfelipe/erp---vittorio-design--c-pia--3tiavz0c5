@@ -36,6 +36,7 @@ routerAdd(
     if (!auth) {
       throw new ApiError(401, 'Autenticação necessária.')
     }
+    const app = e.app
     const perfil = auth.get('perfil') || ''
     if (perfil !== 'admin') {
       throw new ApiError(403, 'Apenas administradores podem executar a classificação de NCMs.')
@@ -58,15 +59,15 @@ routerAdd(
     //    Origem 'manual' é sempre preservada (nunca sobrescrita pela automação).
     let alvos = []
     try {
-      alvos = app
-        .findRecordsByFilter(
-          'boms',
-          "(ncm = '' || ncm IS NULL || ncm_status = 'pendente_fiscal') && ncm_origem != 'manual'",
-          'created',
-          500,
-          0,
-        )
-        .toArray()
+      // findRecordsByFilter já devolve um array JS no JSVM (não usar .toArray()).
+      // "IS NULL" não é sintaxe de filtro do PocketBase — campo text vazio já cobre nulo.
+      alvos = app.findRecordsByFilter(
+        'boms',
+        "(ncm = '' || ncm_status = 'pendente_fiscal') && ncm_origem != 'manual'",
+        'created',
+        500,
+        0,
+      )
     } catch (_) {
       alvos = []
     }
@@ -109,9 +110,13 @@ routerAdd(
     // ---------------------- Coleta de componentes por BOM ----------------------
     function componentesDeBom(bomId) {
       try {
-        const itens = app
-          .findRecordsByFilter('bom_items', "bom_id = '" + bomId + "'", 'ordem', 100, 0)
-          .toArray()
+        const itens = app.findRecordsByFilter(
+          'bom_items',
+          "bom_id = '" + bomId + "'",
+          'ordem',
+          100,
+          0,
+        )
         return itens
           .map((it) => {
             const cod = it.getString('codigo') || ''
@@ -364,6 +369,7 @@ routerAdd(
     if (!info.auth) {
       throw new ApiError(401, 'Autenticação necessária.')
     }
+    const app = e.app
     try {
       const prog = app.findRecordById('ncm_lote_progresso', 'ativo')
       return e.json(200, {
