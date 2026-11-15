@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Bom } from '@/types/erp'
 import { bomsService } from '@/services/boms'
+import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,

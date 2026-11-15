@@ -19,6 +19,7 @@ import { toast } from 'sonner'
 import { useAuth } from '@/context/AuthContext'
 import NcmCell from '@/components/precos/NcmCell'
 import ClassificarNcmLoteButton from '@/components/precos/ClassificarNcmLoteButton'
+import EditarProdutoCatalogoDialog from '@/components/precos/EditarProdutoCatalogoDialog'
 
 const statusLabels: Record<string, string> = {
   rascunho: 'Rascunho',
@@ -231,6 +232,13 @@ export default function CatalogoPage() {
                         <span>{it.nome_produto || '—'}</span>
                         {it.unidade && it.unidade !== 'UN' && (
                           <span className="text-xs text-muted-foreground">({it.unidade})</span>
+                        )}
+                        {it.bom && (
+                          <EditarProdutoCatalogoDialog
+                            bom={it.bom}
+                            podeAdmin={podeAdmin}
+                            onChanged={load}
+                          />
                         )}
                       </div>
                     </TableCell>
