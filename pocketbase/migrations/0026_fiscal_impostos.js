@@ -24,6 +24,8 @@ migrate(
       colEmpresa = null
     }
     if (!colEmpresa) {
+      // collectionId precisa do ID REAL da coleção users (referência por nome falha)
+      const usersCol = app.findCollectionByNameOrId('users')
       colEmpresa = new Collection({
         name: 'empresa',
         type: 'base',
@@ -37,7 +39,7 @@ migrate(
             name: 'criador',
             type: 'relation',
             required: true,
-            collectionId: 'users',
+            collectionId: usersCol.id,
             maxSelect: 1,
           },
           { name: 'razao_social', type: 'text', required: true },
@@ -67,22 +69,23 @@ migrate(
     const nomesExistentes = []
     for (const f of colFat.fields) nomesExistentes.push(f.name)
 
-    const novosCampos = [
-      { name: 'impostos_estimados', type: 'number', onlyIfMissing: true },
-      { name: 'valor_liquido', type: 'number', onlyIfMissing: true },
-      {
-        name: 'regime_tributario',
-        type: 'select',
-        onlyIfMissing: true,
-        maxSelect: 1,
-        values: ['simples', 'presumido', 'real'],
-      },
-      { name: 'impostos_detalhe', type: 'text', onlyIfMissing: true },
-    ]
-    for (const f of novosCampos) {
-      if (!nomesExistentes.includes(f.name)) {
-        colFat.fields.add(new Field(f))
-      }
+    if (!nomesExistentes.includes('impostos_estimados')) {
+      colFat.fields.add(new NumberField({ name: 'impostos_estimados' }))
+    }
+    if (!nomesExistentes.includes('valor_liquido')) {
+      colFat.fields.add(new NumberField({ name: 'valor_liquido' }))
+    }
+    if (!nomesExistentes.includes('regime_tributario')) {
+      colFat.fields.add(
+        new SelectField({
+          name: 'regime_tributario',
+          maxSelect: 1,
+          values: ['simples', 'presumido', 'real'],
+        }),
+      )
+    }
+    if (!nomesExistentes.includes('impostos_detalhe')) {
+      colFat.fields.add(new TextField({ name: 'impostos_detalhe', max: 2000 }))
     }
     app.save(colFat)
 
