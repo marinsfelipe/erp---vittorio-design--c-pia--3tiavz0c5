@@ -13,16 +13,15 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Check, Pencil, Sparkles, CircleAlert } from 'lucide-react'
+import { Pencil, Sparkles, CircleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
 /**
  * Célula de NCM para a listagem de produtos finais (Tabela de Preços e Catálogo):
- * mostra o NCM gravado, o badge de origem (Manual / Automática / Sugestão pendente)
- * e, quando houver sugestão da IA pendente, os botões "Confirmar" e "Alterar".
- * Confiança média/baixa só vira NCM válido após confirmação do admin.
- * O admin também pode preencher o NCM MANUALMENTE a qualquer momento (com ou sem
- * sugestão pendente) — gravação com origem "Manual", nunca sobrescrita pelo lote.
+ * mostra o NCM gravado, o badge de origem (Manual / Automática) e a justificativa
+ * (a palavra-chave/regra que casou, quando Automática).
+ * O admin também pode preencher o NCM MANUALMENTE a qualquer momento — gravação
+ * com origem "Manual", nunca sobrescrita pelas regras.
  */
 export default function NcmCell({
   bom,
@@ -38,35 +37,7 @@ export default function NcmCell({
   const [valor, setValor] = useState('')
 
   const ncm = (bom.ncm || '').replace(/\D/g, '')
-  const sugerido = (bom.ncm_sugerido || '').replace(/\D/g, '')
   const origem = bom.ncm_origem || ''
-  const temSugestao = origem === 'sugestao' && sugerido.length === 8
-  const confianca = bom.ncm_confianca || ''
-
-  const aplicar = async (acao: 'confirmar' | 'alterar') => {
-    setSalvando(true)
-    try {
-      if (acao === 'confirmar') {
-        await ncmService.confirmar(bom.id)
-        toast.success(`NCM ${sugerido} confirmado para ${bom.sku}.`)
-      } else {
-        if (!valor) {
-          toast.error('Informe o NCM de 8 dígitos.')
-          setSalvando(false)
-          return
-        }
-        const salvo = await ncmService.alterar(bom.id, valor)
-        toast.success(`NCM ${salvo.ncm} salvo para ${bom.sku}.`)
-        setDialogAberto(false)
-        setValor('')
-      }
-      onChanged()
-    } catch (err: any) {
-      toast.error(err?.message || 'Erro ao salvar o NCM.')
-    } finally {
-      setSalvando(false)
-    }
-  }
 
   const definirManual = async () => {
     if (!valor || valor.replace(/\D/g, '').length !== 8) {
@@ -106,15 +77,6 @@ export default function NcmCell({
           <Sparkles className="h-2.5 w-2.5" /> Automática
         </Badge>
       )
-    if (origem === 'sugestao')
-      return (
-        <Badge
-          variant="outline"
-          className="text-[10px] px-1.5 py-0 border-amber-300 text-amber-700 bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:bg-amber-950/40"
-        >
-          Sugestão pendente
-        </Badge>
-      )
     return null
   }
 
@@ -147,12 +109,6 @@ export default function NcmCell({
           <span className="font-mono text-xs font-bold text-foreground">
             {ncm.slice(0, 4)}.{ncm.slice(4, 6)}.{ncm.slice(6)}
           </span>
-        ) : temSugestao ? (
-          <span className="font-mono text-xs text-amber-700 dark:text-amber-400">
-            <Sparkles className="inline h-3 w-3 mr-0.5" />
-            sugestão: {sugerido.slice(0, 4)}.{sugerido.slice(4, 6)}.{sugerido.slice(6)}
-            {confianca === 'media' ? ' (média)' : confianca === 'baixa' ? ' (baixa)' : ''}
-          </span>
         ) : (
           <span className="text-xs text-muted-foreground">—</span>
         )}
@@ -160,46 +116,20 @@ export default function NcmCell({
         {badgeStatus()}
       </div>
 
-      {temSugestao && bom.ncm_justificativa && (
+      {origem === 'automatica' && bom.ncm_justificativa && (
         <span className="text-[10px] text-muted-foreground leading-tight max-w-[240px]">
           {bom.ncm_justificativa}
         </span>
       )}
 
-      {!temSugestao && !ncm && (bom.ncm_status || '') === 'pendente_fiscal' && (
+      {!ncm && (bom.ncm_status || '') === 'pendente_fiscal' && (
         <span className="text-[10px] text-rose-600 dark:text-rose-400 flex items-center gap-1">
-          <CircleAlert className="h-3 w-3" /> Sem sugestão confiável
+          <CircleAlert className="h-3 w-3" /> Sem regra aplicável
         </span>
       )}
 
-      {podeAdmin && temSugestao && (
-        <div className="flex items-center gap-1 mt-0.5">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 px-2 text-[10px] gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300"
-            disabled={salvando}
-            onClick={() => aplicar('confirmar')}
-          >
-            <Check className="h-3 w-3" /> Confirmar
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-6 px-2 text-[10px] gap-1"
-            disabled={salvando}
-            onClick={() => {
-              setValor(sugerido)
-              setDialogAberto(true)
-            }}
-          >
-            <Pencil className="h-3 w-3" /> Alterar
-          </Button>
-        </div>
-      )}
-
       {/* Preenchimento manual: admin define/edita o NCM a qualquer momento */}
-      {podeAdmin && !temSugestao && (
+      {podeAdmin && (
         <Button
           size="sm"
           variant="ghost"
@@ -220,10 +150,8 @@ export default function NcmCell({
           <DialogHeader>
             <DialogTitle>NCM manual</DialogTitle>
             <DialogDescription>
-              Produto <strong className="font-mono">{bom.sku}</strong> — {bom.nome}
-              {temSugestao
-                ? ' (substitui a sugestão da IA; vira origem Manual).'
-                : ' (fica com origem Manual — o lote automático nunca sobrescreve).'}
+              Produto <strong className="font-mono">{bom.sku}</strong> — {bom.nome} (fica com origem
+              Manual — as regras automáticas nunca sobrescrevem).
             </DialogDescription>
           </DialogHeader>
           <Input
