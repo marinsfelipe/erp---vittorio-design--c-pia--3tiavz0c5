@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T03:44:35.424Z",
+  "generatedAt": "2026-11-15T03:57:54.293Z",
   "collections": [
     {
       "name": "users",
@@ -1550,6 +1550,151 @@
         }
       ],
       "indexes": []
+    },
+    {
+      "name": "contas_receber",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "view": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "create": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "update": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "delete": "@request.auth.id != '' && @request.auth.perfil = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "faturamento",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "faturamentos"
+        },
+        {
+          "name": "proposta",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "propostas"
+        },
+        {
+          "name": "cliente",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "clientes"
+        },
+        {
+          "name": "faturamento_numero",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "proposta_numero",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_nome",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "cliente_cnpj",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "condicao_pagamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "numero_parcela",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "total_parcelas",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_parcela",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_recebido",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "vencimento",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["pendente", "pago"]
+        },
+        {
+          "name": "data_recebimento",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "forma_pagamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "criador",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_contas_receber_status ON contas_receber (status)",
+        "CREATE INDEX idx_contas_receber_vencimento ON contas_receber (vencimento)",
+        "CREATE INDEX idx_contas_receber_faturamento ON contas_receber (faturamento)"
+      ]
     }
   ]
 }
