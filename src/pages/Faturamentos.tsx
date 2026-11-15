@@ -4,16 +4,9 @@ import { faturamentosService } from '@/services/faturamentos'
 import { fiscalService, type RespostaFiscal } from '@/services/fiscal'
 import type { Empresa, Faturamento, FaturamentoStatus } from '@/types/erp'
 import { formatBRL, formatDateTime } from '@/utils/formatters'
-import {
-  ErroPendenciaFiscal,
-  exportarFaturamentoXlsx,
-  exportarListaFaturamentosXlsx,
-} from '@/utils/faturamentoExport'
-import { itensPendentesFiscais, mensagemPendenciasFiscais } from '@/utils/fiscalExportacao'
-import {
-  DialogExportacaoPendencias,
-  type DecisaoExportacao,
-} from '@/components/fiscal/DialogExportacaoPendencias'
+import { exportarPreNotaXlsx, exportarListaFaturamentosXlsx } from '@/utils/faturamentoExport'
+import { itensPendentesFiscais } from '@/utils/fiscalExportacao'
+import DialogExportacaoPendencias from '@/components/fiscal/DialogExportacaoPendencias'
 import { formatarCest } from '@/components/precos/CestCell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -245,13 +238,15 @@ export default function FaturamentosPage() {
     }
   }
 
-  // Fiscal F4 — cadastro da Empresa (emissor da pré-nota; 1 registro).
+  // Fiscal F4 — cadastro da Empresa (emissor da pré-nota; 1 registro,
+  // admin-only por RLS — define CSOSN/CST nas abas da planilha). Carregada
+  // para TODOS os usuários: quando o vendedor não tem acesso à coleção,
+  // a exportação segue com o fallback (Simples Nacional).
   useEffect(() => {
-    if (!isAdmin)
-      return fiscalService
-        .getEmpresa()
-        .then(setEmpresa)
-        .catch((err) => console.warn('Fiscal: falha ao carregar Empresa:', err))
+    fiscalService
+      .getEmpresa()
+      .then(setEmpresa)
+      .catch((err) => console.warn('Fiscal: falha ao carregar Empresa:', err))
   }, [isAdmin])
 
   useEffect(() => {
@@ -340,27 +335,15 @@ export default function FaturamentosPage() {
 
   const executarExportacao = (fat: Faturamento, liberarPendencias: boolean) => {
     try {
-      exportarFaturamentoXlsx(fat, {
+      exportarPreNotaXlsx(fat, {
         empresa,
         liberarPendencias,
       })
       toast.success(`Planilha ${fat.numero} exportada com sucesso!`)
     } catch (err: any) {
       console.error(err)
-      if (err instanceof ErroPendenciaFiscal) {
-        toast.error(mensagemPendenciasFiscais(err.itens))
-      } else {
-        toast.error('Erro ao gerar planilha .xlsx.')
-      }
+      toast.error('Erro ao gerar planilha .xlsx.')
     }
-  }
-
-  // Fiscal F4 — decisão do admin no diálogo de pendências.
-  const decidirExportacao = (decisao: DecisaoExportacao) => {
-    const fat = pendenciasExport
-    setPendenciasExport(null)
-    if (!fat) return
-    if (decisao === 'exportar') executarExportacao(fat, true)
   }
 
   const handleExportarLista = () => {
@@ -1286,14 +1269,15 @@ export default function FaturamentosPage() {
       </Dialog>
 
       {/* Fiscal F4 — bloqueio de exportação com pendências fiscais (liberação só admin) */}
-      {pendenciasExport && (
-        <DialogExportacaoPendencias
-          open={Boolean(pendenciasExport)}
-          onOpenChange={(open) => !open && setPendenciasExport(null)}
-          itens={pendenciasExport.produtos || []}
-          onExportarMesmoAssim={() => decidirExportacao('exportar')}
-        />
-      )}
+      <DialogExportacaoPendencias
+        fat={pendenciasExport}
+        isAdmin={isAdmin}
+        onFechar={() => setPendenciasExport(null)}
+        onConfirmarLiberacao={(fatLiberado) => {
+          setPendenciasExport(null)
+          executarExportacao(fatLiberado, true)
+        }}
+      />
     </div>
   )
 }

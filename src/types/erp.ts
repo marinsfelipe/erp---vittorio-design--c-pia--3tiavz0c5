@@ -420,6 +420,10 @@ export interface FaturamentoItemProduto {
   ncm?: string
   /** Fiscal F2 — CEST do produto (quando preenchido no cadastro do BOM). */
   cest?: string
+  /** Fiscal F4 — unidade do item (do cadastro do BOM, gravada pelo hook). */
+  unidade?: string
+  /** Fiscal F4 — origem do NCM (manual/automatica/sugestao, gravada pelo hook). */
+  ncm_origem?: OrigemNcm | ''
 }
 
 export interface Faturamento {

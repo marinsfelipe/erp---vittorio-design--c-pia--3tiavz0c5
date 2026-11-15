@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/context/AuthContext'
 import { fiscalService } from '@/services/fiscal'
 import { faturamentosService } from '@/services/faturamentos'
-import type { Faturamento, ImpostosEstimados } from '@/types/erp'
+import type { Empresa, Faturamento, ImpostosEstimados } from '@/types/erp'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -48,6 +48,8 @@ export default function FiscalPage() {
   const [detalhes, setDetalhes] = useState<Record<string, ImpostosEstimados>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [calculando, setCalculando] = useState<string | null>(null)
+  // Fiscal F4 — Empresa define a coluna CSOSN/CST do livro de saídas
+  const [empresa, setEmpresa] = useState<Empresa | null>(null)
 
   // Navegação mensal do Livro de Saídas (mesmo padrão do Fluxo de Caixa)
   const agora = new Date()
@@ -73,6 +75,19 @@ export default function FiscalPage() {
   useEffect(() => {
     if (perfil === 'admin') carregar()
   }, [perfil, carregar])
+
+  // Fiscal F4 — Empresa (1 registro, admin-only) para a coluna CSOSN/CST
+  useEffect(() => {
+    if (perfil !== 'admin') return
+    const carregarEmpresa = async () => {
+      try {
+        setEmpresa(await fiscalService.getEmpresa())
+      } catch (err) {
+        console.warn('Fiscal: falha ao carregar Empresa:', err)
+      }
+    }
+    carregarEmpresa()
+  }, [perfil])
 
   const calcular = async (id: string) => {
     setCalculando(id)
@@ -252,7 +267,7 @@ export default function FiscalPage() {
                 disabled={linhasLivro.length === 0}
                 onClick={() => {
                   try {
-                    exportarLivroSaidasXlsx(linhasLivro, anoSelecionado, mesSelecionado)
+                    exportarLivroSaidasXlsx(linhasLivro, anoSelecionado, mesSelecionado, empresa)
                     toast({
                       title: `Livro de Saídas ${nomeMes(mesSelecionado)}/${anoSelecionado} exportado`,
                     })

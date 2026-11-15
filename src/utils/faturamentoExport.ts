@@ -126,14 +126,16 @@ export function exportarPreNotaXlsx(fat: Faturamento, opts: OptsPreNota) {
   XLSX.utils.book_append_sheet(wb, wsDados, 'Dados Fiscais')
 
   // ---------- 2. Aba "Itens para NF" — todas as colunas fiscais ----------
+  // Fiscal F4 — unidade/origem gravadas por item pelo hook fiscal.pb.js; os
+  // mapas (resposta do hook) servem de fallback quando o snapshot é antigo.
   const itens = (fat.produtos || []).map((prod, idx) => ({
     Item: idx + 1,
     'Código / SKU': prod.sku || '—',
     'Descrição do Produto / Equipamento': prod.descricao,
     NCM: (prod.ncm || '').trim(),
-    'Origem do NCM': rotuloOrigemNcm(opts.origemPorSku?.[prod.sku || '']),
+    'Origem do NCM': rotuloOrigemNcm(prod.ncm_origem || opts.origemPorSku?.[prod.sku || ''] || ''),
     [csosn.chave]: csosn.valor,
-    Unidade: opts.unidadePorSku?.[prod.sku || ''] || 'UN',
+    Unidade: prod.unidade || opts.unidadePorSku?.[prod.sku || ''] || 'UN',
     Quantidade: prod.quantidade,
     'Valor Unitário de Venda (R$)': Number((Number(prod.valor_unitario) || 0).toFixed(2)),
     'Valor Total do Item (R$)': Number((Number(prod.valor_total) || 0).toFixed(2)),
