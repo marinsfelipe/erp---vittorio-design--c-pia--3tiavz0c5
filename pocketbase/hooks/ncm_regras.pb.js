@@ -49,10 +49,18 @@ routerAdd(
     }
 
     var REGRAS = [
-      { ncm: '84185090', rotulo: 'Refrigerador', termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'] },
+      {
+        ncm: '84185090',
+        rotulo: 'Refrigerador',
+        termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
+      },
       { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
       { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
-      { ncm: '84198920', rotulo: 'Vitrine aquecida / Estufa', termos: ['vitrine aquecida', 'estufa'] },
+      {
+        ncm: '84198920',
+        rotulo: 'Vitrine aquecida / Estufa',
+        termos: ['vitrine aquecida', 'estufa'],
+      },
       { ncm: '94032090', rotulo: 'Vitrine neutra', termos: ['vitrine neutra'] },
       { ncm: '84198190', rotulo: 'Cocção', termos: ['coccao'] },
     ]
@@ -65,14 +73,19 @@ routerAdd(
         for (var j = 0; j < r.termos.length; j++) {
           // início de palavra: "refrigerada" casa "refrigerador/refrigerado"
           var padrao = normalizar(r.termos[j]).trim().split(/\s+/).join('\\s+')
-          if (new RegExp('(^| )' + padrao, 'i').test(txt)) return { ncm: r.ncm, rotulo: r.rotulo, termo: r.termos[j] }
+          if (new RegExp('(^| )' + padrao, 'i').test(txt))
+            return { ncm: r.ncm, rotulo: r.rotulo, termo: r.termos[j] }
         }
       }
       return null
     }
 
     function textoDoProduto(app, rec) {
-      var partes = [rec.getString('nome') || '', rec.getString('descricao') || '', rec.getString('categoria') || '']
+      var partes = [
+        rec.getString('nome') || '',
+        rec.getString('descricao') || '',
+        rec.getString('categoria') || '',
+      ]
       try {
         var itens = app.findRecordsByFilter('bom_items', "bom_id = '" + rec.id + "'", '', 1000, 0)
         for (var i = 0; i < itens.length; i++) {
@@ -101,7 +114,10 @@ routerAdd(
       rec.set('ncm_origem', 'automatica')
       rec.set('ncm_confianca', 'alta')
       rec.set('ncm_status', 'pronto_nf')
-      rec.set('ncm_justificativa', String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termo + '")').slice(0, 500))
+      rec.set(
+        'ncm_justificativa',
+        String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termo + '")').slice(0, 500),
+      )
       app.save(rec)
       return 'classificados'
     }
@@ -158,7 +174,12 @@ routerAdd(
       prog.set('estado', 'concluido')
       prog.set('finalizado_em', new Date().toISOString())
       app.save(prog)
-      return e.json(200, { ok: true, total: 0, estado: 'concluido', mensagem: 'Nenhum produto pendente de classificação de NCM.' })
+      return e.json(200, {
+        ok: true,
+        total: 0,
+        estado: 'concluido',
+        mensagem: 'Nenhum produto pendente de classificação de NCM.',
+      })
     }
 
     const processarLote = function () {
@@ -207,11 +228,29 @@ routerAdd(
         prog.set('finalizado_em', new Date().toISOString())
         prog.set(
           'mensagem',
-          'Concluído: ' + classificados + ' classificado(s), ' + semRegra + ' sem regra aplicável, ' + manuais + ' manual(is) preservado(s).',
+          'Concluído: ' +
+            classificados +
+            ' classificado(s), ' +
+            semRegra +
+            ' sem regra aplicável, ' +
+            manuais +
+            ' manual(is) preservado(s).',
         )
         app.save(prog)
       } catch (_) {}
-      console.log('[NCM] Lote por regras concluído: ' + processados + ' processado(s), ' + classificados + ' classificado(s), ' + semRegra + ' sem regra, ' + manuais + ' manual(is), ' + erros + ' erro(s).')
+      console.log(
+        '[NCM] Lote por regras concluído: ' +
+          processados +
+          ' processado(s), ' +
+          classificados +
+          ' classificado(s), ' +
+          semRegra +
+          ' sem regra, ' +
+          manuais +
+          ' manual(is), ' +
+          erros +
+          ' erro(s).',
+      )
     }
 
     // Segundo plano (timer do JSVM); fallback síncrono caso o timer falhe
@@ -229,7 +268,12 @@ routerAdd(
           } catch (_) {}
         }
       }, 10)
-      return e.json(202, { ok: true, total: total, estado: 'executando', mensagem: 'Classificação iniciada para ' + total + ' produto(s).' })
+      return e.json(202, {
+        ok: true,
+        total: total,
+        estado: 'executando',
+        mensagem: 'Classificação iniciada para ' + total + ' produto(s).',
+      })
     } catch (_) {
       processarLote()
       return e.json(200, { ok: true, total: total, estado: 'concluido' })
@@ -298,15 +342,25 @@ onRecordCreate('boms', (e) => {
         return out
       }
       var REGRAS = [
-        { ncm: '84185090', rotulo: 'Refrigerador', termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'] },
+        {
+          ncm: '84185090',
+          rotulo: 'Refrigerador',
+          termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
+        },
         { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
         { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
-        { ncm: '84198920', rotulo: 'Vitrine aquecida / Estufa', termos: ['vitrine aquecida', 'estufa'] },
+        {
+          ncm: '84198920',
+          rotulo: 'Vitrine aquecida / Estufa',
+          termos: ['vitrine aquecida', 'estufa'],
+        },
         { ncm: '94032090', rotulo: 'Vitrine neutra', termos: ['vitrine neutra'] },
         { ncm: '84198190', rotulo: 'Cocção', termos: ['coccao'] },
       ]
       var txt = normalizar(
-        [rec.getString('nome'), rec.getString('descricao'), rec.getString('categoria')].filter(Boolean).join(' | '),
+        [rec.getString('nome'), rec.getString('descricao'), rec.getString('categoria')]
+          .filter(Boolean)
+          .join(' | '),
       ).replace(/[^a-z0-9]+/g, ' ')
       var casou = null
       for (var i = 0; i < REGRAS.length && !casou; i++) {
@@ -323,7 +377,13 @@ onRecordCreate('boms', (e) => {
         rec.set('ncm_origem', 'automatica')
         rec.set('ncm_confianca', 'alta')
         rec.set('ncm_status', 'pronto_nf')
-        rec.set('ncm_justificativa', String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(0, 500))
+        rec.set(
+          'ncm_justificativa',
+          String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(
+            0,
+            500,
+          ),
+        )
       } else {
         rec.set('ncm_status', 'pendente_fiscal')
       }
@@ -354,15 +414,25 @@ onRecordUpdate('boms', (e) => {
           return out
         }
         var REGRAS = [
-          { ncm: '84185090', rotulo: 'Refrigerador', termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'] },
+          {
+            ncm: '84185090',
+            rotulo: 'Refrigerador',
+            termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
+          },
           { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
           { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
-          { ncm: '84198920', rotulo: 'Vitrine aquecida / Estufa', termos: ['vitrine aquecida', 'estufa'] },
+          {
+            ncm: '84198920',
+            rotulo: 'Vitrine aquecida / Estufa',
+            termos: ['vitrine aquecida', 'estufa'],
+          },
           { ncm: '94032090', rotulo: 'Vitrine neutra', termos: ['vitrine neutra'] },
           { ncm: '84198190', rotulo: 'Cocção', termos: ['coccao'] },
         ]
         var txt = normalizar(
-          [rec.getString('nome'), rec.getString('descricao'), rec.getString('categoria')].filter(Boolean).join(' | '),
+          [rec.getString('nome'), rec.getString('descricao'), rec.getString('categoria')]
+            .filter(Boolean)
+            .join(' | '),
         ).replace(/[^a-z0-9]+/g, ' ')
         var casou = null
         for (var i = 0; i < REGRAS.length && !casou; i++) {
@@ -379,7 +449,13 @@ onRecordUpdate('boms', (e) => {
           rec.set('ncm_origem', 'automatica')
           rec.set('ncm_confianca', 'alta')
           rec.set('ncm_status', 'pronto_nf')
-          rec.set('ncm_justificativa', String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(0, 500))
+          rec.set(
+            'ncm_justificativa',
+            String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(
+              0,
+              500,
+            ),
+          )
         } else {
           rec.set('ncm_status', 'pendente_fiscal')
         }
@@ -418,14 +494,26 @@ onRecordCreate('bom_items', (e) => {
       return out
     }
     var REGRAS = [
-      { ncm: '84185090', rotulo: 'Refrigerador', termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'] },
+      {
+        ncm: '84185090',
+        rotulo: 'Refrigerador',
+        termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
+      },
       { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
       { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
-      { ncm: '84198920', rotulo: 'Vitrine aquecida / Estufa', termos: ['vitrine aquecida', 'estufa'] },
+      {
+        ncm: '84198920',
+        rotulo: 'Vitrine aquecida / Estufa',
+        termos: ['vitrine aquecida', 'estufa'],
+      },
       { ncm: '94032090', rotulo: 'Vitrine neutra', termos: ['vitrine neutra'] },
       { ncm: '84198190', rotulo: 'Cocção', termos: ['coccao'] },
     ]
-    var partes = [rec.getString('nome') || '', rec.getString('descricao') || '', rec.getString('categoria') || '']
+    var partes = [
+      rec.getString('nome') || '',
+      rec.getString('descricao') || '',
+      rec.getString('categoria') || '',
+    ]
     try {
       var itens = app.findRecordsByFilter('bom_items', "bom_id = '" + rec.id + "'", '', 1000, 0)
       for (var x = 0; x < itens.length; x++) {
@@ -448,7 +536,13 @@ onRecordCreate('bom_items', (e) => {
       rec.set('ncm_origem', 'automatica')
       rec.set('ncm_confianca', 'alta')
       rec.set('ncm_status', 'pronto_nf')
-      rec.set('ncm_justificativa', String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(0, 500))
+      rec.set(
+        'ncm_justificativa',
+        String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(
+          0,
+          500,
+        ),
+      )
       rec.set('ncm_sugerido', '')
       rec.set('ncm_classificado_em', new Date().toISOString())
       app.save(rec)
@@ -479,14 +573,26 @@ onRecordUpdate('bom_items', (e) => {
       return out
     }
     var REGRAS = [
-      { ncm: '84185090', rotulo: 'Refrigerador', termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'] },
+      {
+        ncm: '84185090',
+        rotulo: 'Refrigerador',
+        termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
+      },
       { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
       { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
-      { ncm: '84198920', rotulo: 'Vitrine aquecida / Estufa', termos: ['vitrine aquecida', 'estufa'] },
+      {
+        ncm: '84198920',
+        rotulo: 'Vitrine aquecida / Estufa',
+        termos: ['vitrine aquecida', 'estufa'],
+      },
       { ncm: '94032090', rotulo: 'Vitrine neutra', termos: ['vitrine neutra'] },
       { ncm: '84198190', rotulo: 'Cocção', termos: ['coccao'] },
     ]
-    var partes = [rec.getString('nome') || '', rec.getString('descricao') || '', rec.getString('categoria') || '']
+    var partes = [
+      rec.getString('nome') || '',
+      rec.getString('descricao') || '',
+      rec.getString('categoria') || '',
+    ]
     try {
       var itens = app.findRecordsByFilter('bom_items', "bom_id = '" + rec.id + "'", '', 1000, 0)
       for (var x = 0; x < itens.length; x++) {
@@ -509,7 +615,13 @@ onRecordUpdate('bom_items', (e) => {
       rec.set('ncm_origem', 'automatica')
       rec.set('ncm_confianca', 'alta')
       rec.set('ncm_status', 'pronto_nf')
-      rec.set('ncm_justificativa', String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(0, 500))
+      rec.set(
+        'ncm_justificativa',
+        String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(
+          0,
+          500,
+        ),
+      )
       rec.set('ncm_sugerido', '')
       rec.set('ncm_classificado_em', new Date().toISOString())
       app.save(rec)

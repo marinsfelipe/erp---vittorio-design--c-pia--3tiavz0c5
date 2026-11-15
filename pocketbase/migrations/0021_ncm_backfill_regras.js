@@ -21,10 +21,18 @@ migrate(
     }
 
     var REGRAS = [
-      { ncm: '84185090', rotulo: 'Refrigerador', termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'] },
+      {
+        ncm: '84185090',
+        rotulo: 'Refrigerador',
+        termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
+      },
       { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
       { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
-      { ncm: '84198920', rotulo: 'Vitrine aquecida / Estufa', termos: ['vitrine aquecida', 'estufa'] },
+      {
+        ncm: '84198920',
+        rotulo: 'Vitrine aquecida / Estufa',
+        termos: ['vitrine aquecida', 'estufa'],
+      },
       { ncm: '94032090', rotulo: 'Vitrine neutra', termos: ['vitrine neutra'] },
       { ncm: '84198190', rotulo: 'Cocção', termos: ['coccao'] },
     ]
@@ -47,7 +55,11 @@ migrate(
       }
       if (ncmAtual && status === 'pronto_nf') continue
 
-      var partes = [rec.getString('nome') || '', rec.getString('descricao') || '', rec.getString('categoria') || '']
+      var partes = [
+        rec.getString('nome') || '',
+        rec.getString('descricao') || '',
+        rec.getString('categoria') || '',
+      ]
       try {
         var itens = app.findRecordsByFilter('bom_items', "bom_id = '" + rec.id + "'", '', 1000, 0)
         for (var x = 0; x < itens.length; x++) {
@@ -76,7 +88,10 @@ migrate(
         rec.set('ncm_origem', 'automatica')
         rec.set('ncm_confianca', 'alta')
         rec.set('ncm_status', 'pronto_nf')
-        rec.set('ncm_justificativa', String('Regra: ' + regraCasada.rotulo + ' (palavra-chave "' + casou + '")').slice(0, 500))
+        rec.set(
+          'ncm_justificativa',
+          String('Regra: ' + regraCasada.rotulo + ' (palavra-chave "' + casou + '")').slice(0, 500),
+        )
         rec.set('ncm_sugerido', '')
         rec.set('ncm_classificado_em', new Date().toISOString())
         app.save(rec)
@@ -94,7 +109,15 @@ migrate(
       }
     }
 
-    console.log('[NCM backfill] ' + classificados + ' classificado(s), ' + semRegra + ' sem regra, ' + manuais + ' manual(is) preservado(s).')
+    console.log(
+      '[NCM backfill] ' +
+        classificados +
+        ' classificado(s), ' +
+        semRegra +
+        ' sem regra, ' +
+        manuais +
+        ' manual(is) preservado(s).',
+    )
   },
   (app) => {
     // rollback: no-op (classificação é reversível pela UI; não desfeito)

@@ -6,6 +6,9 @@ import type { Bom } from '@/types/erp'
  * (sem IA). Rotas do hook `ncm_regras.pb.js`:
  *   POST /backend/v1/custom/ncm/classificar  — dispara o lote (admin)
  *   GET  /backend/v1/custom/ncm/progresso    — progresso/resumo (autenticado)
+ *
+ * Backfill dos BOMs existentes: migração 0021_ncm_backfill_regras.js
+ * (aplicada; mesma lista de regras do hook — reexecutá-la não muda nada).
  */
 
 export interface ProgressoNcm {
