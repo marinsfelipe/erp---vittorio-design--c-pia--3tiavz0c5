@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T11:06:20.696Z",
+  "generatedAt": "2026-11-15T11:37:45.670Z",
   "collections": [
     {
       "name": "users",
@@ -1694,6 +1694,119 @@
         "CREATE INDEX idx_contas_receber_status ON contas_receber (status)",
         "CREATE INDEX idx_contas_receber_vencimento ON contas_receber (vencimento)",
         "CREATE INDEX idx_contas_receber_faturamento ON contas_receber (faturamento)"
+      ]
+    },
+    {
+      "name": "contas_pagar",
+      "type": "base",
+      "apiRules": {
+        "list": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "view": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "create": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "update": "@request.auth.id != '' && @request.auth.perfil = 'admin'",
+        "delete": "@request.auth.id != '' && @request.auth.perfil = 'admin'"
+      },
+      "fields": [
+        {
+          "name": "ordem_compra",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "ordens_compra"
+        },
+        {
+          "name": "ordem_numero",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "fornecedor",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "descricao",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "categoria",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "valor_pago",
+          "type": "number",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "vencimento",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "data_pagamento",
+          "type": "date",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "forma_pagamento",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "status",
+          "type": "select",
+          "required": true,
+          "system": false,
+          "selectValues": ["pendente", "pago", "parcial", "cancelado"]
+        },
+        {
+          "name": "observacoes",
+          "type": "text",
+          "required": false,
+          "system": false
+        },
+        {
+          "name": "criado_por",
+          "type": "relation",
+          "required": true,
+          "system": false,
+          "collectionRef": "users"
+        },
+        {
+          "name": "created",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate"]
+        },
+        {
+          "name": "updated",
+          "type": "autodate",
+          "required": false,
+          "system": false,
+          "autodateTriggers": ["onCreate", "onUpdate"]
+        }
+      ],
+      "indexes": [
+        "CREATE INDEX idx_contas_pagar_status ON contas_pagar (status)",
+        "CREATE INDEX idx_contas_pagar_vencimento ON contas_pagar (vencimento)",
+        "CREATE INDEX idx_contas_pagar_ordem ON contas_pagar (ordem_compra)"
       ]
     }
   ]

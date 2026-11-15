@@ -24,6 +24,7 @@ import {
   Receipt,
   Tag,
   Wallet,
+  CreditCard,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -143,6 +144,12 @@ export default function Layout() {
           href: '/contas-receber',
           label: 'Contas a Receber',
           icon: Wallet,
+          adminOnly: true,
+        },
+        {
+          href: '/contas-pagar',
+          label: 'Contas a Pagar',
+          icon: CreditCard,
           adminOnly: true,
         },
         { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },

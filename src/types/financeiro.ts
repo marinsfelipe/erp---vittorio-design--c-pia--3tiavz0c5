@@ -89,3 +89,72 @@ export const LABEL_STATUS_PARCELA: Record<string, string> = {
 export function saldoAberto(conta: ContaReceber): number {
   return Math.max(0, (Number(conta.valor_parcela) || 0) - (Number(conta.valor_recebido) || 0))
 }
+
+// ---------------------------------------------------------------------------
+// Contas a Pagar (Funcionalidade 2) — mesmos padrões de ContaReceber
+// ---------------------------------------------------------------------------
+
+export interface ContaPagar {
+  id: string
+  ordem_compra?: string
+  ordem_numero?: string
+  fornecedor: string
+  descricao?: string
+  categoria?: string
+  valor: number
+  valor_pago: number
+  vencimento: string
+  status: StatusParcela
+  data_pagamento?: string
+  forma_pagamento?: string
+  observacoes?: string
+  criado_por: string
+  created?: string
+  updated?: string
+}
+
+export interface BaixaContaPagarInput {
+  data_pagamento: string
+  valor: number
+  forma_pagamento?: FormaPagamento
+  observacao?: string
+}
+
+/** Categorias sugeridas para lançamento avulso de despesas (campo livre) */
+export const CATEGORIAS_DESPESA = [
+  'Aluguel',
+  'Energia',
+  'Água',
+  'Telefonia/Internet',
+  'Insumos',
+  'Frete',
+  'Impostos',
+  'Outros',
+]
+
+/** Status efetivo da conta a pagar, considerando atraso pelo vencimento */
+export function statusEfetivoPagar(
+  conta: Pick<ContaPagar, 'status' | 'vencimento' | 'valor' | 'valor_pago'>,
+): StatusParcela | 'atrasado' {
+  if (conta.status === 'cancelado') return 'cancelado'
+  if (conta.status === 'pago') return 'pago'
+  const venc = new Date(conta.vencimento)
+  const hoje = new Date()
+  venc.setHours(0, 0, 0, 0)
+  hoje.setHours(0, 0, 0, 0)
+  if (venc < hoje) return 'atrasado'
+  return conta.status === 'parcial' ? 'parcial' : 'pendente'
+}
+
+export const LABEL_STATUS_CONTA_PAGAR: Record<string, string> = {
+  pendente: 'Pendente',
+  parcial: 'Pago parcial',
+  pago: 'Pago',
+  atrasado: 'Atrasado',
+  cancelado: 'Cancelado',
+}
+
+/** Saldo em aberto da conta a pagar (o que falta pagar) */
+export function saldoAbertoPagar(conta: ContaPagar): number {
+  return Math.max(0, (Number(conta.valor) || 0) - (Number(conta.valor_pago) || 0))
+}

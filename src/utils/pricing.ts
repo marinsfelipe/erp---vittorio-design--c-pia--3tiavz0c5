@@ -35,6 +35,8 @@ export const PARAMETROS_FORA_MARKUP = [
   'financeiro_condicao_60',
   'financeiro_condicao_90',
   'financeiro_condicao_120',
+  // Prazo de pagamento a fornecedores do Contas a Pagar (valor_percentual = dias)
+  'financeiro_prazo_fornecedor',
 ]
 
 /** Soma os percentuais (em %) de todos os parâmetros da tabela. */
