@@ -74,18 +74,13 @@ export const fiscalService = {
     return todos.filter((p) => p.chave.startsWith('fiscal_'))
   },
 
-  /** Lista de NCMs sujeitos a substituição tributária (parametro fiscal_st_ncm). */
+  /** Fiscal F2 — lista CSV de NCMs sujeitos à substituição tributária. */
   async getListaStNcm(): Promise<string[]> {
-    try {
-      const rec = await pb
-        .collection('parametros')
-        .getFirstListItem<Parametro>("chave = 'fiscal_st_ncm'")
-      return (rec.valor_texto || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    } catch {
-      return ['8418.50.90']
-    }
+    const todos = await parametrosService.getAll()
+    const rec = todos.find((p) => p.chave === 'fiscal_st_ncm')
+    return (rec?.valor_texto || '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean)
   },
 }

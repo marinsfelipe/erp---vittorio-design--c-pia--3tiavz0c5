@@ -154,6 +154,7 @@ export default function ParametrosFiscaisCard() {
               <TabsTrigger value="presumido">Lucro Presumido</TabsTrigger>
               <TabsTrigger value="icms">ICMS por UF</TabsTrigger>
               <TabsTrigger value="ncm">NCMs com IPI 5%</TabsTrigger>
+              <TabsTrigger value="st">NCMs com substituição tributária</TabsTrigger>
             </TabsList>
 
             {/* ---------------- Simples Nacional (Anexo II) ---------------- */}
@@ -303,6 +304,33 @@ export default function ParametrosFiscaisCard() {
                 <p className="text-[10px] text-muted-foreground">
                   {
                     textoDe('fiscal_ipi_ncm_5')
+                      .split(',')
+                      .map((c) => c.trim())
+                      .filter(Boolean).length
+                  }{' '}
+                  NCM(s) cadastrado(s)
+                </p>
+              </div>
+            </TabsContent>
+
+            {/* ---------------- NCMs com substituição tributária ----------- */}
+            <TabsContent value="st" className="mt-4 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                Códigos NCM (8 dígitos) de produtos sujeitos à SUBSTITUIÇÃO TRIBUTÁRIA. Ao faturar
+                um item com um desses NCMs, o sistema sugere CFOP 5.405/6.405 e o CEST 21.007.00.
+                Separe por vírgula (ex.: 84185090).
+              </p>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Lista de NCMs (ST)</Label>
+                <Input
+                  value={textoDe('fiscal_st_ncm')}
+                  onChange={(e) => setTexto('fiscal_st_ncm', e.target.value)}
+                  placeholder="84185090"
+                  className="h-8 text-xs font-mono"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  {
+                    textoDe('fiscal_st_ncm')
                       .split(',')
                       .map((c) => c.trim())
                       .filter(Boolean).length

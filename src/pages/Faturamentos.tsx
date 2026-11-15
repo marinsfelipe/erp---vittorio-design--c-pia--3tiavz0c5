@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { faturamentosService } from '@/services/faturamentos'
-import { fiscalService } from '@/services/fiscal'
+import { fiscalService, type RespostaFiscal } from '@/services/fiscal'
 import type { Faturamento, FaturamentoStatus } from '@/types/erp'
 import { formatBRL, formatDateTime } from '@/utils/formatters'
 import { exportarFaturamentoXlsx, exportarListaFaturamentosXlsx } from '@/utils/faturamentoExport'
+import { formatarCest } from '@/components/precos/CestCell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -29,6 +31,9 @@ import {
   Receipt,
   Search,
   Eye,
+  Save,
+  Barcode,
+  Route,
   Building2,
   Trash2,
   FileSpreadsheet,
@@ -42,6 +47,7 @@ import {
   AlertCircle,
   Calculator,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/AuthContext'
@@ -517,7 +523,7 @@ export default function FaturamentosPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => setVisualizandoFaturamento(fat)}
+                            onClick={() => abrirDetalhes(fat)}
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             title="Ver detalhes da pré-nota"
                           >
@@ -705,6 +711,12 @@ export default function FaturamentosPage() {
                         <TableHead className="text-xs font-semibold">
                           Descrição do Produto
                         </TableHead>
+                        {isAdmin && (
+                          <>
+                            <TableHead className="text-xs font-semibold">NCM</TableHead>
+                            <TableHead className="text-xs font-semibold">CEST</TableHead>
+                          </>
+                        )}
                         <TableHead className="text-right text-xs font-semibold">Qtd</TableHead>
                         <TableHead className="text-right text-xs font-semibold">
                           Preço Unit.
@@ -719,6 +731,16 @@ export default function FaturamentosPage() {
                             {prod.sku || '—'}
                           </TableCell>
                           <TableCell className="font-medium">{prod.descricao}</TableCell>
+                          {isAdmin && (
+                            <>
+                              <TableCell className="font-mono text-[11px]">
+                                {prod.ncm || '—'}
+                              </TableCell>
+                              <TableCell className="font-mono text-[11px] text-amber-700 dark:text-amber-300">
+                                {prod.cest ? formatarCest(prod.cest) : '—'}
+                              </TableCell>
+                            </>
+                          )}
                           <TableCell className="text-right font-mono">{prod.quantidade}</TableCell>
                           <TableCell className="text-right font-mono">
                             {formatBRL(prod.valor_unitario)}
@@ -800,6 +822,106 @@ export default function FaturamentosPage() {
                       ESTIMATIVA — apuração oficial pelo contador. O sistema não emite NF-e.
                     </span>
                   </div>
+                </div>
+              )}
+
+              {/* Fiscal F2 — CFOP editável + substituição tributária — APENAS ADMIN */}
+              {isAdmin && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Route className="h-4 w-4 text-primary" />
+                      CFOP e Substituição Tributária
+                    </h4>
+                    {fiscalDetalhe ? (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-mono text-muted-foreground border-border"
+                      >
+                        {fiscalDetalhe.mesma_uf
+                          ? 'Mesma UF'
+                          : `Interestadual${fiscalDetalhe.uf_empresa ? ' (empresa: ' + fiscalDetalhe.uf_empresa + ')' : ''}`}
+                      </Badge>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground inline-flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Calculando...
+                      </span>
+                    )}
+                  </div>
+
+                  {/* CFOP sugerido pelo hook (5.102/6.102; 5.405/6.405 com ST) */}
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border flex flex-col sm:flex-row sm:items-end gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">
+                        CFOP da operação
+                        {fiscalDetalhe?.cfop && fiscalDetalhe.cfop !== cfopEdicao && (
+                          <span className="text-muted-foreground font-normal">
+                            {' '}
+                            — sugerido: {fiscalDetalhe.cfop}
+                          </span>
+                        )}
+                      </Label>
+                      <Input
+                        value={cfopEdicao}
+                        onChange={(e) => setCfopEdicao(e.target.value)}
+                        placeholder="5.102"
+                        className="h-8 w-28 font-mono text-xs"
+                        maxLength={5}
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        4 dígitos — 5.102 mesma UF, 6.102 interestadual (5.405/6.405 com ST).
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={salvarCfop}
+                      disabled={salvandoCfop}
+                      className="gap-1.5 text-xs"
+                    >
+                      {salvandoCfop ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Save className="h-3.5 w-3.5" />
+                      )}
+                      Salvar CFOP
+                    </Button>
+                  </div>
+
+                  {/* Alerta amarelo de substituição tributária + CEST sugerido */}
+                  {fiscalDetalhe?.st && (
+                    <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 space-y-2">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />
+                        <div className="text-[11px] text-amber-800 dark:text-amber-300 space-y-1">
+                          <p className="font-semibold">
+                            Item(s) com NCM sujeito a SUBSTITUIÇÃO TRIBUTÁRIA — CFOP sugerido muda
+                            para {fiscalDetalhe.cfop || '5.405/6.405'}:
+                          </p>
+                          <ul className="list-disc list-inside font-mono">
+                            {(fiscalDetalhe.st_itens || []).map((it, i) => (
+                              <li key={i}>
+                                {it.sku || '—'} — NCM {it.ncm}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      {fiscalDetalhe.cest_sugerido && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={aplicarCestSugerido}
+                          className="gap-1.5 text-xs border-amber-400 text-amber-700 hover:bg-amber-100 dark:text-amber-300 dark:hover:bg-amber-900/40"
+                        >
+                          <Barcode className="h-3.5 w-3.5" />
+                          Aplicar CEST sugerido ({fiscalDetalhe.cest_sugerido})
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

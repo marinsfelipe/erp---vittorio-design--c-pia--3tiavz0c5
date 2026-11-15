@@ -117,6 +117,12 @@ export const faturamentosService = {
     return normalizarFaturamento(rec)
   },
 
+  /** Fiscal F2 — atualização parcial de campos (ex.: cfop, produtos com cest). */
+  async update(id: string, data: Partial<FaturamentoInput>): Promise<Faturamento> {
+    const rec = await pb.collection('faturamentos').update(id, data)
+    return normalizarFaturamento(rec)
+  },
+
   async delete(id: string): Promise<boolean> {
     return await pb.collection('faturamentos').delete(id)
   },

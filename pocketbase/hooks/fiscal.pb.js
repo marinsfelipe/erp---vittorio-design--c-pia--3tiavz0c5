@@ -358,6 +358,25 @@ routerAdd(
       if (!cfopGravado || /^(5|6)\.(102|405)$/.test(cfopGravado)) {
         fat.set('cfop', cfopNovo)
       }
+      // Fiscal F2: grava NCM/CEST por item em `produtos` (JSON) — a planilha
+      // .xlsx para a contabilidade lê esses campos por item.
+      let produtosAlterados = false
+      for (const p of produtos) {
+        const sku = String(p.sku || '')
+        const ncmFmt = String(ncmPorSku[sku] || '').trim()
+        const cestFmt = String(cestPorSku[sku] || '').trim()
+        if (ncmFmt && p.ncm !== ncmFmt) {
+          p.ncm = ncmFmt
+          produtosAlterados = true
+        }
+        if (cestFmt && !p.cest) {
+          p.cest = cestFmt
+          produtosAlterados = true
+        }
+      }
+      if (produtosAlterados) {
+        fat.set('produtos', JSON.stringify(produtos))
+      }
       app.save(fat)
     } catch (err) {
       console.log('[FISCAL] Snapshot no faturamento ' + fatId + ' falhou: ' + String(err))
