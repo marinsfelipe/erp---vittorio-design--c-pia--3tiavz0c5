@@ -23,6 +23,7 @@ import {
   ScrollText,
   Receipt,
   Tag,
+  Wallet,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -137,6 +138,12 @@ export default function Layout() {
           label: 'Faturamentos (Pré-Notas)',
           icon: Receipt,
           adminOnly: false,
+        },
+        {
+          href: '/contas-receber',
+          label: 'Contas a Receber',
+          icon: Wallet,
+          adminOnly: true,
         },
         { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
         { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },

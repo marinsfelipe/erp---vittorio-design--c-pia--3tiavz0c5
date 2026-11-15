@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-15T03:57:54.293Z",
+  "generatedAt": "2026-11-15T11:06:20.696Z",
   "collections": [
     {
       "name": "users",
@@ -1648,7 +1648,7 @@
           "type": "select",
           "required": true,
           "system": false,
-          "selectValues": ["pendente", "pago"]
+          "selectValues": ["pendente", "pago", "parcial", "cancelado"]
         },
         {
           "name": "data_recebimento",

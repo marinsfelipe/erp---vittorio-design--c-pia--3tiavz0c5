@@ -23,6 +23,7 @@ import PipelinePage from '@/pages/Pipeline'
 import ModelosContratoPage from '@/pages/ModelosContrato'
 import ContratosPage from '@/pages/Contratos'
 import FaturamentosPage from '@/pages/Faturamentos'
+import ContasReceberPage from '@/pages/ContasReceber'
 import TabelaPrecosPage from '@/pages/TabelaPrecos'
 import NotFound from '@/pages/NotFound'
 
@@ -59,6 +60,7 @@ export default function App() {
 
               {/* Rotas restritas exclusivamente para administradores (já bloqueia vendedor) */}
               <Route element={<ProtectedRoute apenasAdmin />}>
+                <Route path="/contas-receber" element={<ContasReceberPage />} />
                 <Route path="/tabela-precos" element={<TabelaPrecosPage />} />
                 <Route path="/parametros" element={<ParametrosPage />} />
                 <Route path="/usuarios" element={<UsuariosPage />} />

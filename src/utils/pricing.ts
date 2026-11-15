@@ -26,10 +26,21 @@ export interface MarkupDivisorResult {
   erro: string | null
 }
 
+/** Parâmetros administrativos que NÃO entram na fórmula de precificação. */
+export const PARAMETROS_FORA_MARKUP = [
+  'limite_desconto_vendedor',
+  // Condições de pagamento do financeiro (valor_percentual = prazo em dias)
+  'financeiro_condicao_avista',
+  'financeiro_condicao_30',
+  'financeiro_condicao_60',
+  'financeiro_condicao_90',
+  'financeiro_condicao_120',
+]
+
 /** Soma os percentuais (em %) de todos os parâmetros da tabela. */
 export function somaPercentuais(parametros: Parametro[]): number {
   return parametros
-    .filter((p) => p.chave !== 'limite_desconto_vendedor')
+    .filter((p) => !PARAMETROS_FORA_MARKUP.includes(p.chave))
     .reduce((acc, p) => acc + (Number(p.valor_percentual) || 0), 0)
 }
 
@@ -44,7 +55,7 @@ export function montarPercentuais(
 ): number[] {
   const valores: Record<string, number> = { ...map }
   // Parâmetros administrativos que NÃO entram no markup divisor de precificação
-  delete valores['limite_desconto_vendedor']
+  for (const chave of PARAMETROS_FORA_MARKUP) delete valores[chave]
 
   if (overrides?.overhead !== undefined) valores['overhead'] = overrides.overhead
   if (overrides?.margem !== undefined) valores['margem_alvo'] = overrides.margem
