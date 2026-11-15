@@ -32,6 +32,7 @@ import {
 } from '@/types/financeiro'
 import { Loader2 } from 'lucide-react'
 import CondicoesPagamentoCard from '@/components/financeiro/CondicoesPagamentoCard'
+import AlertasFinanceiro from '@/components/financeiro/AlertasFinanceiro'
 
 interface FaixaAging {
   titulo: string
@@ -185,6 +186,8 @@ export default function ContasReceberPage() {
           Parcelas geradas automaticamente a partir do faturamento (pré-nota emitida).
         </p>
       </div>
+
+      <AlertasFinanceiro />
 
       {/* Resumo */}
       <div className="grid gap-4 md:grid-cols-3">

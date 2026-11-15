@@ -25,6 +25,8 @@ import {
   Tag,
   Wallet,
   CreditCard,
+  BarChart3,
+  ArrowLeftRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -141,6 +143,18 @@ export default function Layout() {
           adminOnly: false,
         },
         {
+          href: '/financeiro',
+          label: 'Dashboard Financeiro',
+          icon: BarChart3,
+          adminOnly: true,
+        },
+        {
+          href: '/fluxo-caixa',
+          label: 'Fluxo de Caixa',
+          icon: ArrowLeftRight,
+          adminOnly: true,
+        },
+        {
           href: '/contas-receber',
           label: 'Contas a Receber',
           icon: Wallet,
@@ -181,6 +195,18 @@ export default function Layout() {
           label: 'Simular Precificação',
           icon: DollarSign,
           adminOnly: false,
+        },
+        {
+          href: '/financeiro',
+          label: 'Dashboard Financeiro',
+          icon: BarChart3,
+          adminOnly: true,
+        },
+        {
+          href: '/fluxo-caixa',
+          label: 'Fluxo de Caixa',
+          icon: ArrowLeftRight,
+          adminOnly: true,
         },
         {
           href: '/tabela-precos',

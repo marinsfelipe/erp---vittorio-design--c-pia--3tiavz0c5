@@ -25,6 +25,8 @@ import ContratosPage from '@/pages/Contratos'
 import FaturamentosPage from '@/pages/Faturamentos'
 import ContasReceberPage from '@/pages/ContasReceber'
 import ContasPagarPage from '@/pages/ContasPagar'
+import DashboardFinanceiroPage from '@/pages/DashboardFinanceiro'
+import FluxoCaixaPage from '@/pages/FluxoCaixa'
 import TabelaPrecosPage from '@/pages/TabelaPrecos'
 import NotFound from '@/pages/NotFound'
 
@@ -61,6 +63,8 @@ export default function App() {
 
               {/* Rotas restritas exclusivamente para administradores (já bloqueia vendedor) */}
               <Route element={<ProtectedRoute apenasAdmin />}>
+                <Route path="/financeiro" element={<DashboardFinanceiroPage />} />
+                <Route path="/fluxo-caixa" element={<FluxoCaixaPage />} />
                 <Route path="/contas-receber" element={<ContasReceberPage />} />
                 <Route path="/contas-pagar" element={<ContasPagarPage />} />
                 <Route path="/tabela-precos" element={<TabelaPrecosPage />} />

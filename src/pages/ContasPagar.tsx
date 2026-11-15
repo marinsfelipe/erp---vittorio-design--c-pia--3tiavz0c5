@@ -34,6 +34,7 @@ import {
   statusEfetivoPagar,
 } from '@/types/financeiro'
 import { Loader2, Pencil, Plus, Wallet } from 'lucide-react'
+import AlertasFinanceiro from '@/components/financeiro/AlertasFinanceiro'
 
 interface FormDespesa {
   fornecedor: string
@@ -330,6 +331,8 @@ export default function ContasPagarPage() {
           </Button>
         </div>
       </div>
+
+      <AlertasFinanceiro />
 
       {/* Resumo */}
       <div className="grid gap-4 md:grid-cols-3">
