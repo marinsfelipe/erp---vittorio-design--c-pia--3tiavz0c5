@@ -2,8 +2,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { propostasService } from '@/services/propostas'
 import { bomsService } from '@/services/boms'
 import type { Proposta, PropostaItem, Bom } from '@/types/erp'
+import { RotateCw } from 'lucide-react'
 import { formatBRL } from '@/utils/formatters'
 import { Input } from '@/components/ui/input'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -14,7 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Package, Search, Tag } from 'lucide-react'
+import { Package, Search, SearchX, Tag } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/AuthContext'
 import NcmCell from '@/components/precos/NcmCell'
@@ -153,7 +162,26 @@ export default function CatalogoPage() {
     load()
   }, [load])
 
+  // Filtros de cadastro: categoria e status fiscal deduzidos dos dados reais carregados
+  const categoriasCatalogo = Array.from(
+    new Set(
+      catalogoItens
+        .map((it) => it.bom?.categoria || '')
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    ),
+  )
+
+  const statusFiscalDe = (it: CatalogoProdutoItem): string =>
+    it.bom?.ncm_status === 'pendente_fiscal' || !it.bom?.ncm ? 'pendente_fiscal' : 'pronto_nf'
+
+  const [filtroCategoria, setFiltroCategoria] = useState('todas')
+  const [filtroStatusFiscal, setFiltroStatusFiscal] = useState('todos')
+
   const filtrados = catalogoItens.filter((it) => {
+    if (filtroCategoria !== 'todas' && (it.bom?.categoria || '') !== filtroCategoria) return false
+    if (filtroStatusFiscal !== 'todos' && statusFiscalDe(it) !== filtroStatusFiscal) return false
+
     if (!searchTerm.trim()) return true
     const q = searchTerm.toLowerCase()
     const prop = propostas.find((p) => p.id === it.proposta_id)
@@ -183,30 +211,98 @@ export default function CatalogoPage() {
         <ClassificarNcmLoteButton boms={bomsCadastrados} onConcluido={load} podeAdmin={podeAdmin} />
       </div>
 
-      {/* Busca */}
-      <div className="relative md:max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por SKU, produto ou preço direto..."
-          className="pl-9"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+      {/* Busca + filtros de cadastro */}
+      <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-center gap-3">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por SKU, produto, descrição ou cliente..."
+            className="pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="w-full md:w-56">
+          <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as categorias</SelectItem>
+              {categoriasCatalogo.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full md:w-48">
+          <Select value={filtroStatusFiscal} onValueChange={setFiltroStatusFiscal}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Status fiscal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Status fiscal: todos</SelectItem>
+              <SelectItem value="pronto_nf">Pronto para NF</SelectItem>
+              <SelectItem value="pendente_fiscal">Pendente fiscal</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs h-9 gap-1.5"
+          onClick={() => {
+            setSearchTerm('')
+            setFiltroCategoria('todas')
+            setFiltroStatusFiscal('todos')
+          }}
+        >
+          <RotateCw className="h-3.5 w-3.5" />
+          Limpar filtros
+        </Button>
+        <span className="text-xs text-muted-foreground md:ml-auto whitespace-nowrap">
+          Exibindo <strong>{filtrados.length}</strong> de {catalogoItens.length} produtos
+        </span>
       </div>
 
       {isLoading ? (
         <div className="text-center py-16 text-muted-foreground">Carregando catálogo...</div>
       ) : filtrados.length === 0 ? (
-        <Card className="text-center py-12">
-          <CardContent className="space-y-3">
-            <Package className="h-12 w-12 text-muted-foreground mx-auto" />
-            <p className="font-semibold text-foreground text-lg">Nenhum produto no catálogo</p>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Os produtos aparecem aqui assim que houver produtos cadastrados ou propostas com
-              preços registrados.
-            </p>
-          </CardContent>
-        </Card>
+        catalogoItens.length === 0 ? (
+          <Card className="text-center py-12">
+            <CardContent className="space-y-3">
+              <Package className="h-12 w-12 text-muted-foreground mx-auto" />
+              <p className="font-semibold text-foreground text-lg">Nenhum produto no catálogo</p>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Os produtos aparecem aqui assim que houver produtos cadastrados ou propostas com
+                preços registrados.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="text-center py-12">
+            <CardContent className="space-y-3">
+              <SearchX className="h-12 w-12 text-muted-foreground mx-auto" />
+              <p className="font-semibold text-foreground text-lg">Nenhum registro encontrado</p>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Tente ajustar a busca ou os filtros de categoria e status fiscal.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSearchTerm('')
+                  setFiltroCategoria('todas')
+                  setFiltroStatusFiscal('todos')
+                }}
+              >
+                Limpar filtros
+              </Button>
+            </CardContent>
+          </Card>
+        )
       ) : (
         <Card className="overflow-hidden">
           <Table>

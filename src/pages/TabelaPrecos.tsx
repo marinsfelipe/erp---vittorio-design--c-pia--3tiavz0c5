@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { bomsService } from '@/services/boms'
 import { parametrosService } from '@/services/parametros'
 import type { Bom, BomItem, Parametro, OrigemPrecoTabela, TipoSobrepreco } from '@/types/erp'
+import { LABEL_ORIGEM_NCM } from '@/types/erp'
 import { formatBRL, formatPercent } from '@/utils/formatters'
 import { montarArvore, calcularCustoConsolidado } from '@/utils/bomTree'
 import { montarPercentuais, calcularMarkupDivisor } from '@/utils/pricing'
@@ -10,6 +11,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Table,
@@ -73,6 +81,9 @@ export default function TabelaPrecosPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroOrigem, setFiltroOrigem] = useState<string>('todos')
+  const [filtroCategoria, setFiltroCategoria] = useState<string>('todas')
+  const [filtroStatusFiscal, setFiltroStatusFiscal] = useState<string>('todos')
+  const [filtroOrigemNcm, setFiltroOrigemNcm] = useState<string>('todas')
 
   // Estado do Diálogo de Edição de Preço
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -183,6 +194,19 @@ export default function TabelaPrecosPage() {
     })
   }, [boms, bomItemsCache, pMap])
 
+  // Status fiscal e origem do NCM de cada linha (derivados do cadastro do BOM)
+  const statusFiscalDe = (r: ProdutoTabelaRow): string =>
+    r.bom.ncm_status === 'pendente_fiscal' || !r.bom.ncm ? 'pendente_fiscal' : 'pronto_nf'
+  const origemNcmDe = (r: ProdutoTabelaRow): string => r.bom.ncm_origem || 'sugestao'
+
+  const categoriasTabela = useMemo(
+    () =>
+      Array.from(new Set(rows.map((r) => r.categoria).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, 'pt-BR'),
+      ),
+    [rows],
+  )
+
   // Filtragem
   const rowsFiltradas = useMemo(() => {
     return rows.filter((r) => {
@@ -200,9 +224,15 @@ export default function TabelaPrecosPage() {
         (filtroOrigem === 'manual' && r.origem === 'manual') ||
         (filtroOrigem === 'preco_direto' && r.origem === 'preco_direto')
 
-      return matchTexto && matchOrigem
+      const matchCategoria = filtroCategoria === 'todas' || r.categoria === filtroCategoria
+      const matchStatusFiscal =
+        filtroStatusFiscal === 'todos' || statusFiscalDe(r) === filtroStatusFiscal
+      const matchOrigemNcm = filtroOrigemNcm === 'todas' || origemNcmDe(r) === filtroOrigemNcm
+
+      return matchTexto && matchOrigem && matchCategoria && matchStatusFiscal && matchOrigemNcm
     })
-  }, [rows, searchTerm, filtroOrigem])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, searchTerm, filtroOrigem, filtroCategoria, filtroStatusFiscal, filtroOrigemNcm])
 
   // Métricas de cabeçalho
   const metricas = useMemo(() => {
@@ -467,7 +497,7 @@ export default function TabelaPrecosPage() {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            Origem:
+            Origem do preço:
           </span>
           <div className="flex items-center gap-1">
             <Button
@@ -514,6 +544,70 @@ export default function TabelaPrecosPage() {
         </div>
       </div>
 
+      {/* Filtros de cadastro (categoria / status fiscal / origem do NCM) */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+        <div className="w-full sm:w-56">
+          <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as categorias</SelectItem>
+              {categoriasTabela.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full sm:w-48">
+          <Select value={filtroStatusFiscal} onValueChange={setFiltroStatusFiscal}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Status fiscal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Status fiscal: todos</SelectItem>
+              <SelectItem value="pronto_nf">Pronto para NF</SelectItem>
+              <SelectItem value="pendente_fiscal">Pendente fiscal</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full sm:w-48">
+          <Select value={filtroOrigemNcm} onValueChange={setFiltroOrigemNcm}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Origem do NCM" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Origem do NCM: todas</SelectItem>
+              {Object.entries(LABEL_ORIGEM_NCM).map(([valor, rotulo]) => (
+                <SelectItem key={valor} value={valor}>
+                  {rotulo}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-xs h-9 gap-1.5"
+          onClick={() => {
+            setSearchTerm('')
+            setFiltroCategoria('todas')
+            setFiltroStatusFiscal('todos')
+            setFiltroOrigemNcm('todas')
+            setFiltroOrigem('todos')
+          }}
+        >
+          <RotateCw className="h-3.5 w-3.5" />
+          Limpar filtros
+        </Button>
+        <span className="text-xs text-muted-foreground sm:ml-auto">
+          Exibindo <strong>{rowsFiltradas.length}</strong> de {rows.length} produtos
+        </span>
+      </div>
+
       {/* Tabela de Preços Principal */}
       <Card>
         <CardContent className="p-0">
@@ -524,9 +618,9 @@ export default function TabelaPrecosPage() {
           ) : rowsFiltradas.length === 0 ? (
             <div className="text-center py-16 space-y-2">
               <DollarSign className="h-10 w-10 text-muted-foreground mx-auto" />
-              <p className="text-sm font-semibold">Nenhum produto encontrado</p>
+              <p className="text-sm font-semibold">Nenhum registro encontrado</p>
               <p className="text-xs text-muted-foreground">
-                Tente ajustar os termos de busca ou o filtro de origem.
+                Tente ajustar os termos de busca ou os filtros de categoria, status fiscal e origem.
               </p>
             </div>
           ) : (

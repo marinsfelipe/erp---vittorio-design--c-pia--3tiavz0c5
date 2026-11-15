@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { componentesService } from '@/services/componentes'
+import { SearchX } from 'lucide-react'
 import type { Componente, TipoItemBom } from '@/types/erp'
 import { TIPOS_ITEM_BOM, labelTipoItem } from '@/types/erp'
 import { formatBRL } from '@/utils/formatters'
@@ -35,10 +36,11 @@ import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 
 export default function ComponentesPage() {
-  const [componentes, setComponentes] = useState<Componente[]>([])
+  const [todosComponentes, setTodosComponentes] = useState<Componente[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategoria, setSelectedCategoria] = useState('todas')
+  const [selectedUnidade, setSelectedUnidade] = useState('todas')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
   const [editingItem, setEditingItem] = useState<Componente | null>(null)
@@ -54,11 +56,13 @@ export default function ComponentesPage() {
     tipo: 'componente_terceiros' as TipoItemBom,
   })
 
+  // Carrega TODOS os componentes em UMA listagem e filtra no cliente
+  // (evita refazer a consulta a cada tecla / troca de filtro)
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const data = await componentesService.search(searchTerm, selectedCategoria)
-      setComponentes(data)
+      const data = await componentesService.getAll()
+      setTodosComponentes(data)
     } catch (err) {
       console.error(err)
       toast.error('Erro ao carregar componentes')
@@ -69,24 +73,34 @@ export default function ComponentesPage() {
 
   useEffect(() => {
     loadData()
-  }, [searchTerm, selectedCategoria])
+  }, [])
+
+  const normalizar = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
 
   const categorias = Array.from(
-    new Set([
-      'Refrigeração',
-      'Evaporação',
-      'Condensação',
-      'Elétrica & Controle',
-      'Estrutura & Funilaria',
-      'Isolamento Térmico',
-      'Vidros & Acabamento',
-      'Iluminação',
-      'Vedação & Acessórios',
-      'Acessórios Internos',
-      'Fluidos',
-      ...componentes.map((c) => c.categoria),
-    ]),
-  ).filter(Boolean)
+    new Set(todosComponentes.map((c) => c.categoria).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  const unidades = Array.from(new Set(todosComponentes.map((c) => c.unidade).filter(Boolean))).sort(
+    (a, b) => a.localeCompare(b, 'pt-BR'),
+  )
+
+  const componentes = todosComponentes.filter((c) => {
+    if (selectedCategoria !== 'todas' && c.categoria !== selectedCategoria) return false
+    if (selectedUnidade !== 'todas' && c.unidade !== selectedUnidade) return false
+
+    const q = normalizar(searchTerm.trim())
+    if (!q) return true
+    return (
+      normalizar(c.codigo).includes(q) ||
+      normalizar(c.descricao).includes(q) ||
+      normalizar(c.fornecedor || '').includes(q)
+    )
+  })
 
   const handleOpenCreate = () => {
     setEditingItem(null)
@@ -165,7 +179,7 @@ export default function ComponentesPage() {
     try {
       await componentesService.delete(id)
       toast.success('Componente excluído.')
-      setComponentes((prev) => prev.filter((c) => c.id !== id))
+      setTodosComponentes((prev) => prev.filter((c) => c.id !== id))
     } catch (err: any) {
       console.error(err)
       toast.error('Erro ao excluir componente.')
@@ -214,9 +228,9 @@ export default function ComponentesPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="w-full md:w-64">
+        <div className="w-full md:w-56">
           <Select value={selectedCategoria} onValueChange={setSelectedCategoria}>
-            <SelectTrigger>
+            <SelectTrigger className="h-9 text-xs">
               <SelectValue placeholder="Filtrar por Categoria" />
             </SelectTrigger>
             <SelectContent>
@@ -229,9 +243,27 @@ export default function ComponentesPage() {
             </SelectContent>
           </Select>
         </div>
+        <div className="w-full md:w-40">
+          <Select value={selectedUnidade} onValueChange={setSelectedUnidade}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Unidade" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as unidades</SelectItem>
+              {unidades.map((un) => (
+                <SelectItem key={un} value={un}>
+                  {un}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button variant="ghost" size="icon" onClick={loadData} title="Atualizar">
           <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
         </Button>
+        <span className="text-xs text-muted-foreground md:ml-auto whitespace-nowrap">
+          Exibindo <strong>{componentes.length}</strong> de {todosComponentes.length} componentes
+        </span>
       </div>
 
       {/* Tabela de Componentes */}
@@ -257,20 +289,51 @@ export default function ComponentesPage() {
                 </TableCell>
               </TableRow>
             ) : componentes.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-12">
-                  <div className="flex flex-col items-center justify-center gap-2">
-                    <Layers className="h-10 w-10 text-muted-foreground/50" />
-                    <p className="font-medium text-foreground">Nenhum componente encontrado</p>
-                    <p className="text-xs text-muted-foreground">
-                      Tente alterar os termos de busca ou cadastre um novo item.
-                    </p>
-                    <Button variant="outline" size="sm" onClick={handleOpenCreate} className="mt-2">
-                      Adicionar Componente
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
+              todosComponentes.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-12">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Layers className="h-10 w-10 text-muted-foreground/50" />
+                      <p className="font-medium text-foreground">Nenhum componente encontrado</p>
+                      <p className="text-xs text-muted-foreground">
+                        Tente alterar os termos de busca ou cadastre um novo item.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleOpenCreate}
+                        className="mt-2"
+                      >
+                        Adicionar Componente
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-12">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <SearchX className="h-10 w-10 text-muted-foreground/50" />
+                      <p className="font-medium text-foreground">Nenhum registro encontrado</p>
+                      <p className="text-xs text-muted-foreground">
+                        Tente ajustar a busca ou os filtros de categoria e unidade.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => {
+                          setSearchTerm('')
+                          setSelectedCategoria('todas')
+                          setSelectedUnidade('todas')
+                        }}
+                      >
+                        Limpar filtros
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )
             ) : (
               componentes.map((comp) => (
                 <TableRow key={comp.id} className="hover:bg-muted/40 transition-colors">

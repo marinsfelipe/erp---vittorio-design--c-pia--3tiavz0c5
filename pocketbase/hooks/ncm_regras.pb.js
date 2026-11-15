@@ -12,7 +12,7 @@
  * Busca por início de palavra, sem diferenciar maiúsculas/minúsculas e acentos:
  *   1. refrigerador/refrigerada(o)/refrigeração -> 8418.50.90
  *   2. freezer                                  -> 8418.50.10
- *   3. mobiliário                               -> 9403.20.10
+ *   3. mobiliário / mesa / estante(s) / bancada(s) -> 9403.20.10
  *   4. vitrine aquecida OU estufa               -> 8419.89.20
  *   5. vitrine neutra                           -> 9403.20.90
  *   6. cocção                                   -> 8419.81.90
@@ -55,7 +55,11 @@ routerAdd(
         termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
       },
       { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
-      { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
+      {
+        ncm: '94032010',
+        rotulo: 'Mobiliário',
+        termos: ['mobiliario', 'mesa', 'estante', 'estantes', 'bancada', 'bancadas'],
+      },
       {
         ncm: '84198920',
         rotulo: 'Vitrine aquecida / Estufa',
@@ -348,7 +352,11 @@ onRecordCreate('boms', (e) => {
           termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
         },
         { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
-        { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
+        {
+          ncm: '94032010',
+          rotulo: 'Mobiliário',
+          termos: ['mobiliario', 'mesa', 'estante', 'estantes', 'bancada', 'bancadas'],
+        },
         {
           ncm: '84198920',
           rotulo: 'Vitrine aquecida / Estufa',
@@ -363,11 +371,15 @@ onRecordCreate('boms', (e) => {
           .join(' | '),
       ).replace(/[^a-z0-9]+/g, ' ')
       var casou = null
+      var termo = ''
       for (var i = 0; i < REGRAS.length && !casou; i++) {
         var r = REGRAS[i]
         for (var j = 0; j < r.termos.length && !casou; j++) {
           var padrao = normalizar(r.termos[j]).trim().split(/\s+/).join('\\s+')
-          if (new RegExp('(^| )' + padrao, 'i').test(txt)) casou = r
+          if (new RegExp('(^| )' + padrao, 'i').test(txt)) {
+            casou = r
+            termo = r.termos[j]
+          }
         }
       }
       rec.set('ncm_sugerido', '')
@@ -379,10 +391,7 @@ onRecordCreate('boms', (e) => {
         rec.set('ncm_status', 'pronto_nf')
         rec.set(
           'ncm_justificativa',
-          String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(
-            0,
-            500,
-          ),
+          String('Regra: ' + casou.rotulo + ' (palavra-chave "' + termo + '")').slice(0, 500),
         )
       } else {
         rec.set('ncm_status', 'pendente_fiscal')
@@ -420,7 +429,11 @@ onRecordUpdate('boms', (e) => {
             termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
           },
           { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
-          { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
+          {
+            ncm: '94032010',
+            rotulo: 'Mobiliário',
+            termos: ['mobiliario', 'mesa', 'estante', 'estantes', 'bancada', 'bancadas'],
+          },
           {
             ncm: '84198920',
             rotulo: 'Vitrine aquecida / Estufa',
@@ -435,11 +448,15 @@ onRecordUpdate('boms', (e) => {
             .join(' | '),
         ).replace(/[^a-z0-9]+/g, ' ')
         var casou = null
+        var termo = ''
         for (var i = 0; i < REGRAS.length && !casou; i++) {
           var r = REGRAS[i]
           for (var j = 0; j < r.termos.length && !casou; j++) {
             var padrao = normalizar(r.termos[j]).trim().split(/\s+/).join('\\s+')
-            if (new RegExp('(^| )' + padrao, 'i').test(txt)) casou = r
+            if (new RegExp('(^| )' + padrao, 'i').test(txt)) {
+              casou = r
+              termo = r.termos[j]
+            }
           }
         }
         rec.set('ncm_sugerido', '')
@@ -451,10 +468,7 @@ onRecordUpdate('boms', (e) => {
           rec.set('ncm_status', 'pronto_nf')
           rec.set(
             'ncm_justificativa',
-            String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(
-              0,
-              500,
-            ),
+            String('Regra: ' + casou.rotulo + ' (palavra-chave "' + termo + '")').slice(0, 500),
           )
         } else {
           rec.set('ncm_status', 'pendente_fiscal')
@@ -500,7 +514,11 @@ onRecordCreate('bom_items', (e) => {
         termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
       },
       { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
-      { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
+      {
+        ncm: '94032010',
+        rotulo: 'Mobiliário',
+        termos: ['mobiliario', 'mesa', 'estante', 'estantes', 'bancada', 'bancadas'],
+      },
       {
         ncm: '84198920',
         rotulo: 'Vitrine aquecida / Estufa',
@@ -524,11 +542,15 @@ onRecordCreate('bom_items', (e) => {
     } catch (_) {}
     var txt = normalizar(partes.filter(Boolean).join(' | ')).replace(/[^a-z0-9]+/g, ' ')
     var casou = null
+    var termo = ''
     for (var i = 0; i < REGRAS.length && !casou; i++) {
       var r = REGRAS[i]
       for (var j = 0; j < r.termos.length && !casou; j++) {
         var padrao = normalizar(r.termos[j]).trim().split(/\s+/).join('\\s+')
-        if (new RegExp('(^| )' + padrao, 'i').test(txt)) casou = r
+        if (new RegExp('(^| )' + padrao, 'i').test(txt)) {
+          casou = r
+          termo = r.termos[j]
+        }
       }
     }
     if (casou) {
@@ -538,10 +560,7 @@ onRecordCreate('bom_items', (e) => {
       rec.set('ncm_status', 'pronto_nf')
       rec.set(
         'ncm_justificativa',
-        String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(
-          0,
-          500,
-        ),
+        String('Regra: ' + casou.rotulo + ' (palavra-chave "' + termo + '")').slice(0, 500),
       )
       rec.set('ncm_sugerido', '')
       rec.set('ncm_classificado_em', new Date().toISOString())
@@ -579,7 +598,11 @@ onRecordUpdate('bom_items', (e) => {
         termos: ['refrigerador', 'refrigerada', 'refrigerado', 'refrigeracao'],
       },
       { ncm: '84185010', rotulo: 'Freezer', termos: ['freezer'] },
-      { ncm: '94032010', rotulo: 'Mobiliário', termos: ['mobiliario'] },
+      {
+        ncm: '94032010',
+        rotulo: 'Mobiliário',
+        termos: ['mobiliario', 'mesa', 'estante', 'estantes', 'bancada', 'bancadas'],
+      },
       {
         ncm: '84198920',
         rotulo: 'Vitrine aquecida / Estufa',
@@ -603,11 +626,15 @@ onRecordUpdate('bom_items', (e) => {
     } catch (_) {}
     var txt = normalizar(partes.filter(Boolean).join(' | ')).replace(/[^a-z0-9]+/g, ' ')
     var casou = null
+    var termo = ''
     for (var i = 0; i < REGRAS.length && !casou; i++) {
       var r = REGRAS[i]
       for (var j = 0; j < r.termos.length && !casou; j++) {
         var padrao = normalizar(r.termos[j]).trim().split(/\s+/).join('\\s+')
-        if (new RegExp('(^| )' + padrao, 'i').test(txt)) casou = r
+        if (new RegExp('(^| )' + padrao, 'i').test(txt)) {
+          casou = r
+          termo = r.termos[j]
+        }
       }
     }
     if (casou) {
@@ -617,10 +644,7 @@ onRecordUpdate('bom_items', (e) => {
       rec.set('ncm_status', 'pronto_nf')
       rec.set(
         'ncm_justificativa',
-        String('Regra: ' + casou.rotulo + ' (palavra-chave "' + casou.termos[0] + '")').slice(
-          0,
-          500,
-        ),
+        String('Regra: ' + casou.rotulo + ' (palavra-chave "' + termo + '")').slice(0, 500),
       )
       rec.set('ncm_sugerido', '')
       rec.set('ncm_classificado_em', new Date().toISOString())

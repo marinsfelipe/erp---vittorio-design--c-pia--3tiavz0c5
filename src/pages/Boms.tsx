@@ -34,6 +34,14 @@ import { Link } from 'react-router-dom'
 import { Upload } from 'lucide-react'
 import ImportarBomDialog from '@/components/bom/ImportarBomDialog'
 import { CategoriaProdutoSelector } from '@/components/bom/CategoriaProdutoSelector'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Search, SearchX } from 'lucide-react'
 
 interface BomWithStats extends Bom {
   itemCount: number
@@ -108,6 +116,29 @@ export default function BomsPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Filtros: busca por texto (código/nome/descrição), categoria e tipo — deduzidos dos dados reais
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filtroCategoria, setFiltroCategoria] = useState('todas')
+  const [filtroTipo, setFiltroTipo] = useState('todos')
+
+  const categoriasBoms = Array.from(
+    new Set(boms.map((b) => b.categoria || '').filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+
+  const bomsFiltrados = boms.filter((b) => {
+    if (filtroCategoria !== 'todas' && (b.categoria || '') !== filtroCategoria) return false
+    if (filtroTipo !== 'todos' && (b.ncm_status || '') !== filtroTipo) return false
+    // "tipo" do BOM: status fiscal (pronto para NF / pendente fiscal), como na Tabela de Preços
+
+    const q = searchTerm.trim().toLowerCase()
+    if (!q) return true
+    return (
+      b.sku.toLowerCase().includes(q) ||
+      b.nome.toLowerCase().includes(q) ||
+      (b.descricao || '').toLowerCase().includes(q)
+    )
+  })
 
   const handleOpenCreate = () => {
     setFormData({
@@ -199,6 +230,49 @@ export default function BomsPage() {
         </div>
       </div>
 
+      {/* Filtros: busca por texto, categoria e tipo */}
+      <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-center gap-3">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por código (SKU), nome ou descrição..."
+            className="pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="w-full md:w-56">
+          <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Categoria" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todas">Todas as categorias</SelectItem>
+              {categoriasBoms.map((cat) => (
+                <SelectItem key={cat} value={cat}>
+                  {cat}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full md:w-48">
+          <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+            <SelectTrigger className="h-9 text-xs">
+              <SelectValue placeholder="Status fiscal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Status fiscal: todos</SelectItem>
+              <SelectItem value="pronto_nf">Pronto para NF</SelectItem>
+              <SelectItem value="pendente_fiscal">Pendente fiscal</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <span className="text-xs text-muted-foreground md:ml-auto whitespace-nowrap">
+          Exibindo <strong>{bomsFiltrados.length}</strong> de {boms.length} BOMs
+        </span>
+      </div>
+
       {/* Grid de Cards de BOMs */}
       {isLoading ? (
         <div className="text-center py-16 text-muted-foreground">
@@ -218,9 +292,30 @@ export default function BomsPage() {
             </Button>
           </CardContent>
         </Card>
+      ) : bomsFiltrados.length === 0 ? (
+        <Card className="text-center py-12">
+          <CardContent className="space-y-3">
+            <SearchX className="h-12 w-12 text-muted-foreground mx-auto" />
+            <p className="font-semibold text-foreground text-lg">Nenhum registro encontrado</p>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Tente ajustar a busca ou os filtros de categoria e status fiscal.
+            </p>
+            <Button
+              variant="outline"
+              className="mt-2"
+              onClick={() => {
+                setSearchTerm('')
+                setFiltroCategoria('todas')
+                setFiltroTipo('todos')
+              }}
+            >
+              Limpar filtros
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {boms.map((bom) => (
+          {bomsFiltrados.map((bom) => (
             <Card
               key={bom.id}
               className="flex flex-col justify-between hover:shadow-md transition-all duration-200 border-border group"
