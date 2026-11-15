@@ -92,20 +92,8 @@ export default function TabelaPrecosPage() {
       setBoms(todosBoms)
       setParametros(todosParams)
 
-      // Carrega os itens dos BOMs que não são preço direto para cálculo do custo consolidado
-      const bomsNormais = todosBoms.filter((b) => !b.preco_direto)
-      const cache: Record<string, BomItem[]> = {}
-      await Promise.all(
-        bomsNormais.map(async (b) => {
-          try {
-            const its = await bomsService.getItems(b.id)
-            cache[b.id] = its
-          } catch {
-            cache[b.id] = []
-          }
-        }),
-      )
-      setBomItemsCache(cache)
+      // Carrega TODOS os itens em UMA listagem única (evita rajada 429)
+      setBomItemsCache(await bomsService.getAllItemsGrouped())
     } catch (err: any) {
       console.error(err)
       toast.error('Erro ao carregar dados da tabela de preços.')

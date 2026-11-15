@@ -102,6 +102,23 @@ export const ordensCompraService = {
   },
 
   /**
+   * Busca TODOS os itens de ordens de compra em UMA listagem única, evitando
+   * a rajada de 1 request por ordem (rate limit 429 do backend).
+   */
+  async getAllItemsGrouped(): Promise<Record<string, OrdemCompraItem[]>> {
+    const todos = await pb.collection('ordem_compra_itens').getFullList<OrdemCompraItem>({
+      sort: 'ordem_id,codigo',
+    })
+    const map: Record<string, OrdemCompraItem[]> = {}
+    for (const it of todos) {
+      const key = it.ordem_id
+      if (!map[key]) map[key] = []
+      map[key].push(it)
+    }
+    return map
+  },
+
+  /**
    * Gera uma ordem de compra agregada com TODOS os componentes ainda
    * pendentes de compra das propostas vendidas. Se já existir uma ordem
    * aberta (pendente/parcial), ela é substituída pela nova consolidação —

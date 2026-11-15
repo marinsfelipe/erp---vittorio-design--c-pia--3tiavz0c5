@@ -69,8 +69,8 @@ export default function CatalogoPage() {
       // Carrega propostas e seus itens
       const props = await propostasService.getAll()
       setPropostas(props)
-      const lists = await Promise.all(props.map((p) => propostasService.getItems(p.id)))
-      const propostaItens = lists.flat()
+      // UMA listagem única de todos os itens de propostas (evita rajada 429)
+      const propostaItens = await propostasService.getAllItemsGroupedFlat()
 
       // Carrega produtos cadastrados (BOMs e Preço Direto)
       let produtosCadastrados: Bom[] = []

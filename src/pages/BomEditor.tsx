@@ -44,6 +44,8 @@ export default function BomEditorPage() {
   const navigate = useNavigate()
 
   const [bom, setBom] = useState<Bom | null>(null)
+  // Campos de características editáveis (nome/descrição/NCM) — versão local
+  const [dadosForm, setDadosForm] = useState({ nome: '', descricao: '', ncm: '' })
   const [items, setItems] = useState<BomItem[]>([])
   const [availableComponents, setAvailableComponents] = useState<Componente[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -76,6 +78,11 @@ export default function BomEditorPage() {
         parametrosService.getMap(),
       ])
       setBom(bomData)
+      setDadosForm({
+        nome: bomData.nome || '',
+        descricao: bomData.descricao || '',
+        ncm: (bomData.ncm || '').replace(/\D/g, ''),
+      })
       setItems(itemsData)
       setAvailableComponents(compList)
       setDefaultParams({
@@ -247,11 +254,27 @@ export default function BomEditorPage() {
     if (!id || !bom) return
     setIsSaving(true)
     try {
+      // Valida o NCM manual (se preenchido): exatamente 8 dígitos
+      const ncmLimpo = dadosForm.ncm.replace(/\D/g, '')
+      if (ncmLimpo && ncmLimpo.length !== 8) {
+        toast.error('O NCM deve conter exatamente 8 dígitos numéricos.')
+        setIsSaving(false)
+        return
+      }
       await bomsService.saveAllItems(id, items)
       await bomsService.update(id, {
+        nome: dadosForm.nome.trim() || bom.nome,
+        descricao: dadosForm.descricao.trim(),
         overhead_percentual: overheadPct,
         margem_percentual: margemPct,
-      })
+        ...(ncmLimpo
+          ? {
+              ncm: ncmLimpo,
+              ncm_origem: bom.ncm_origem === 'manual' || !bom.ncm ? 'manual' : bom.ncm_origem,
+              ncm_status: 'pronto_nf',
+            }
+          : {}),
+      } as any)
       toast.success('BOM salvo com sucesso!')
       // Recarregar para sincronizar IDs gerados no banco
       const updated = await bomsService.getItems(id)
@@ -287,10 +310,12 @@ export default function BomEditorPage() {
               <Badge variant="outline" className="font-mono text-xs font-bold text-primary">
                 {bom.sku}
               </Badge>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">{bom.nome}</h1>
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                {dadosForm.nome || bom.nome}
+              </h1>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              {bom.descricao || 'Estrutura hierárquica multi-nível (árvore) e precificação'}
+              {dadosForm.descricao || 'Estrutura hierárquica multi-nível (árvore) e precificação'}
             </p>
           </div>
         </div>
@@ -306,6 +331,54 @@ export default function BomEditorPage() {
             <Save className="h-4 w-4" />
             {isSaving ? 'Salvando...' : 'Salvar Alterações'}
           </Button>
+        </div>
+      </div>
+
+      {/* Características do produto (nome/descrição/NCM) — editáveis */}
+      <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <span className="text-sm font-semibold text-foreground">Características do Produto</span>
+          <span className="text-[11px] text-muted-foreground">
+            Salvas junto com o botão "Salvar Alterações"
+          </span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="space-y-1.5 lg:col-span-2">
+            <Label htmlFor="bom-nome">Nome do Produto</Label>
+            <Input
+              id="bom-nome"
+              value={dadosForm.nome}
+              onChange={(e) => setDadosForm({ ...dadosForm, nome: e.target.value })}
+              placeholder="Ex: Balcão Frigorífico Inox 1.8m"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="bom-ncm">NCM (8 dígitos)</Label>
+            <Input
+              id="bom-ncm"
+              value={dadosForm.ncm}
+              onChange={(e) =>
+                setDadosForm({ ...dadosForm, ncm: e.target.value.replace(/\D/g, '').slice(0, 8) })
+              }
+              placeholder="Ex: 84185010"
+              className="font-mono"
+              inputMode="numeric"
+              maxLength={8}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Preenchido manualmente, fica com origem "Manual" (o lote automático nunca
+              sobrescreve).
+            </p>
+          </div>
+        </div>
+        <div className="space-y-1.5 mt-4">
+          <Label htmlFor="bom-descricao">Descrição / Aplicação</Label>
+          <Input
+            id="bom-descricao"
+            value={dadosForm.descricao}
+            onChange={(e) => setDadosForm({ ...dadosForm, descricao: e.target.value })}
+            placeholder="Ex: Destinado à conservação e exposição de carnes e frios"
+          />
         </div>
       </div>
 

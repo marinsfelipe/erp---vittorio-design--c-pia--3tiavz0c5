@@ -106,6 +106,16 @@ export const propostasService = {
     })
   },
 
+  /**
+   * Busca TODOS os itens de propostas em UMA listagem única (paginada pelo SDK),
+   * evitando a rajada de 1 request por proposta (rate limit 429 do backend).
+   */
+  async getAllItemsGroupedFlat(): Promise<PropostaItem[]> {
+    return await pb.collection('proposta_items').getFullList<PropostaItem>({
+      sort: 'created,sku',
+    })
+  },
+
   async create(
     cliente: string,
     observacoes: string,

@@ -121,17 +121,8 @@ export default function PropostasPage() {
   const [bomItemsCache, setBomItemsCache] = useState<Record<string, any[]>>({})
   useEffect(() => {
     const loadItems = async () => {
-      const cache: Record<string, any[]> = {}
-      await Promise.all(
-        boms.map(async (b) => {
-          try {
-            cache[b.id] = await bomsService.getItems(b.id)
-          } catch {
-            cache[b.id] = []
-          }
-        }),
-      )
-      setBomItemsCache(cache)
+      // UMA listagem única de todos os itens (evita rajada 429)
+      setBomItemsCache(await bomsService.getAllItemsGrouped())
     }
     if (isDialogOpen && boms.length > 0) loadItems()
   }, [isDialogOpen, boms])

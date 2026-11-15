@@ -65,24 +65,15 @@ export default function ListaComprasPage() {
       const allBoms = await bomsService.getAll()
       setBoms(allBoms)
 
-      // Carregar itens de cada BOM
-      const itemsMap: Record<string, BomItem[]> = {}
+      // Carregar TODOS os itens em UMA listagem única (evita rajada 429)
+      const itemsMap = await bomsService.getAllItemsGrouped()
       const initialSelected: Record<string, boolean> = {}
       const initialMultipliers: Record<string, number> = {}
-
-      await Promise.all(
-        allBoms.map(async (bom) => {
-          try {
-            const its = await bomsService.getItems(bom.id)
-            itemsMap[bom.id] = its
-          } catch {
-            itemsMap[bom.id] = []
-          }
-          // Por padrão selecionar todos os BOMs com 1 unidade a fabricar
-          initialSelected[bom.id] = true
-          initialMultipliers[bom.id] = 1
-        }),
-      )
+      for (const bom of allBoms) {
+        // Por padrão selecionar todos os BOMs com 1 unidade a fabricar
+        initialSelected[bom.id] = true
+        initialMultipliers[bom.id] = 1
+      }
 
       setBomsItemsMap(itemsMap)
       setSelectedBoms(initialSelected)

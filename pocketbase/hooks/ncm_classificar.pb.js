@@ -14,8 +14,9 @@
  * 3. Confiança ALTA  -> grava ncm, ncm_origem='automatica', status='pronto_nf'.
  *    Confiança M/B   -> grava ncm_sugerido, ncm_origem='sugestao', ncm_status='pendente_fiscal'.
  *    Sem sugestão    -> marca status='pendente_fiscal' e origem vazia.
- * 4. Progresso: coleção `ncm_lote_progresso` (id fixo 'ativo') é atualizada a cada
- *    produto; o front consulta via REST a cada 1,5 s para exibir progresso.
+ * 4. Progresso: coleção `ncm_lote_progresso` (registro único de id fixo
+ *    'ncm_lote_ativo_001') é atualizada a cada produto; o front consulta via REST
+ *    a cada 1,5 s para exibir progresso.
  * 5. Resumo final gravado no mesmo registro de progresso.
  *
  * Processamento em segundo plano: a rota responde imediatamente (202) e o lote
@@ -49,8 +50,11 @@ routerAdd(
     }
 
     // Se já existe um lote em andamento, rejeita novo disparo.
+    // Id fixo do registro de progresso precisa ter >= 15 caracteres (regra do
+    // PocketBase para ids de record — 'ativo' causava erro 400 ao salvar).
+    const PROG_ID = 'ncm_lote_ativo_001'
     try {
-      const prog = app.findRecordById('ncm_lote_progresso', 'ativo')
+      const prog = app.findRecordById('ncm_lote_progresso', PROG_ID)
       if (prog.getString('estado') === 'executando') {
         throw new ApiError(409, 'Já existe uma classificação em andamento. Aguarde o término.')
       }
@@ -83,11 +87,11 @@ routerAdd(
     // Cria/renova registro de progresso
     let prog = null
     try {
-      prog = app.findRecordById('ncm_lote_progresso', 'ativo')
+      prog = app.findRecordById('ncm_lote_progresso', PROG_ID)
     } catch (_) {
       const col = app.findCollectionByNameOrId('ncm_lote_progresso')
       prog = new Record(col)
-      prog.set('id', 'ativo')
+      prog.set('id', PROG_ID)
     }
     prog.set('estado', 'executando')
     prog.set('total', total)
@@ -382,7 +386,7 @@ routerAdd(
     }
     const app = e.app
     try {
-      const prog = app.findRecordById('ncm_lote_progresso', 'ativo')
+      const prog = app.findRecordById('ncm_lote_progresso', 'ncm_lote_ativo_001')
       return e.json(200, {
         ok: true,
         estado: prog.getString('estado') || '',

@@ -46,17 +46,10 @@ export default function ComprasPage() {
     setIsLoading(true)
     try {
       const allOrdens = await ordensCompraService.getAll()
-      const entries = await Promise.all(
-        allOrdens.map(async (o) => {
-          try {
-            return [o.id, await ordensCompraService.getItems(o.id)] as const
-          } catch {
-            return [o.id, [] as OrdemCompraItem[]] as const
-          }
-        }),
-      )
+      // UMA listagem única de todos os itens (evita rajada 429)
+      const itensPorOrdemMap = await ordensCompraService.getAllItemsGrouped()
       setOrdens(allOrdens)
-      setItensPorOrdem(Object.fromEntries(entries))
+      setItensPorOrdem(itensPorOrdemMap)
     } catch (err: any) {
       console.error(err)
       toast.error('Erro ao carregar ordens de compra.')

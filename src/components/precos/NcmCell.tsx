@@ -21,6 +21,8 @@ import { toast } from 'sonner'
  * mostra o NCM gravado, o badge de origem (Manual / Automática / Sugestão pendente)
  * e, quando houver sugestão da IA pendente, os botões "Confirmar" e "Alterar".
  * Confiança média/baixa só vira NCM válido após confirmação do admin.
+ * O admin também pode preencher o NCM MANUALMENTE a qualquer momento (com ou sem
+ * sugestão pendente) — gravação com origem "Manual", nunca sobrescrita pelo lote.
  */
 export default function NcmCell({
   bom,
@@ -196,22 +198,41 @@ export default function NcmCell({
         </div>
       )}
 
-      {/* Diálogo Alterar / definir manual */}
+      {/* Preenchimento manual: admin define/edita o NCM a qualquer momento */}
+      {podeAdmin && !temSugestao && (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-6 px-2 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+          disabled={salvando}
+          onClick={() => {
+            setValor(ncm)
+            setDialogAberto(true)
+          }}
+        >
+          <Pencil className="h-3 w-3" /> {ncm ? 'Editar NCM' : 'Definir NCM'}
+        </Button>
+      )}
+
+      {/* Diálogo de NCM manual (definir/alterar) */}
       <Dialog open={dialogAberto} onOpenChange={setDialogAberto}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Alterar NCM</DialogTitle>
+            <DialogTitle>NCM manual</DialogTitle>
             <DialogDescription>
               Produto <strong className="font-mono">{bom.sku}</strong> — {bom.nome}
-              {temSugestao && ' (substitui a sugestão da IA; vira origem Manual).'}
+              {temSugestao
+                ? ' (substitui a sugestão da IA; vira origem Manual).'
+                : ' (fica com origem Manual — o lote automático nunca sobrescreve).'}
             </DialogDescription>
           </DialogHeader>
           <Input
             placeholder="Ex: 84185010"
             value={valor}
-            onChange={(e) => setValor(e.target.value)}
+            onChange={(e) => setValor(e.target.value.replace(/\D/g, '').slice(0, 8))}
             className="font-mono"
-            maxLength={9}
+            inputMode="numeric"
+            maxLength={8}
             autoFocus
           />
           <p className="text-[11px] text-muted-foreground">
