@@ -164,6 +164,34 @@ export const usuariosService = {
     }
   },
 
+  /**
+   * Define o percentual de comissão do vendedor (admin). Salva em users e
+   * usuarios_perfil (mesma sincronização de status/perfil). Valor null limpa.
+   */
+  async setPercentualComissao(
+    perfilId: string,
+    userId: string,
+    percentual: number | null,
+  ): Promise<void> {
+    try {
+      await pb
+        .collection('usuarios_perfil')
+        .update(perfilId, { percentual_comissao: percentual } as any)
+    } catch (errPerfil) {
+      console.warn('Erro ao atualizar percentual em usuarios_perfil:', errPerfil)
+    }
+    const targetUserId = userId || perfilId
+    if (targetUserId) {
+      try {
+        await pb
+          .collection('users')
+          .update(targetUserId, { percentual_comissao: percentual } as any)
+      } catch (err) {
+        console.warn('Erro ao sincronizar percentual no users:', err)
+      }
+    }
+  },
+
   async redefinirSenhaAdmin(userId: string, novaSenhaTemporaria: string): Promise<void> {
     if (!userId || !userId.trim()) throw new Error('ID do usuário não fornecido.')
     const senhaTrim = (novaSenhaTemporaria || '').trim()
@@ -217,6 +245,7 @@ export const usuariosService = {
     email: string
     senha: string
     perfil: 'admin' | 'usuario' | 'vendedor'
+    percentual_comissao?: number | null
   }): Promise<{ user: any; perfil: UsuarioPerfil }> {
     const nomeTrim = dados.nome?.trim()
     const emailTrim = dados.email?.trim().toLowerCase()
@@ -248,6 +277,9 @@ export const usuariosService = {
         perfil,
         status: 'aprovado',
         emailVisibility: true,
+        ...(dados.percentual_comissao != null
+          ? { percentual_comissao: dados.percentual_comissao }
+          : {}),
       })
     } catch (err: any) {
       const errMsg = err?.data?.data?.email?.message || err?.message || ''
@@ -271,6 +303,9 @@ export const usuariosService = {
         email: emailTrim,
         perfil,
         status: 'aprovado',
+        ...(dados.percentual_comissao != null
+          ? { percentual_comissao: dados.percentual_comissao }
+          : {}),
       })
     } catch (errPerfil: any) {
       console.warn('Aviso ao criar registro em usuarios_perfil:', errPerfil)

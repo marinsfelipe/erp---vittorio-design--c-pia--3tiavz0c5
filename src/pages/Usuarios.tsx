@@ -69,6 +69,10 @@ export default function UsuariosPage() {
   const [novoEmail, setNovoEmail] = useState('')
   const [novaSenhaInicial, setNovaSenhaInicial] = useState('')
   const [novoPerfil, setNovoPerfil] = useState<'admin' | 'usuario' | 'vendedor'>('usuario')
+  const [novoPercentual, setNovoPercentual] = useState<string>('')
+  const [percentualTarget, setPercentualTarget] = useState<UsuarioPerfil | null>(null)
+  const [valorPercentual, setValorPercentual] = useState<string>('')
+  const [percentualLoading, setPercentualLoading] = useState(false)
 
   const loadData = async () => {
     setIsLoading(true)
@@ -201,6 +205,16 @@ export default function UsuariosPage() {
       return
     }
 
+    let percentual: number | null = null
+    if (novoPercentual.trim() !== '') {
+      const p = Number(novoPercentual.replace(',', '.'))
+      if (isNaN(p) || p < 0 || p > 100) {
+        toast.error('Percentual de comissão inválido (use um valor entre 0 e 100).')
+        return
+      }
+      percentual = p
+    }
+
     setNovoUserLoading(true)
     try {
       const criado = await usuariosService.criarUsuarioAdmin({
@@ -208,6 +222,7 @@ export default function UsuariosPage() {
         email: emailTrim,
         senha: senhaTrim,
         perfil: novoPerfil,
+        percentual_comissao: percentual,
       })
 
       // Adiciona imediatamente ao estado da lista local para feedback instantâneo
@@ -236,6 +251,7 @@ export default function UsuariosPage() {
       setNovoEmail('')
       setNovaSenhaInicial('')
       setNovoPerfil('usuario')
+      setNovoPercentual('')
       await loadData()
     } catch (err: any) {
       console.error(err)
@@ -266,6 +282,7 @@ export default function UsuariosPage() {
               setNovoEmail('')
               setNovaSenhaInicial('')
               setNovoPerfil('usuario')
+              setNovoPercentual('')
               setNovoUserOpen(true)
             }}
           >

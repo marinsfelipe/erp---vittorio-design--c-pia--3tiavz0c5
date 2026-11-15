@@ -27,6 +27,8 @@ import ContasReceberPage from '@/pages/ContasReceber'
 import ContasPagarPage from '@/pages/ContasPagar'
 import DashboardFinanceiroPage from '@/pages/DashboardFinanceiro'
 import FluxoCaixaPage from '@/pages/FluxoCaixa'
+import ComissoesPage from '@/pages/Comissoes'
+import DRESimplificadoPage from '@/pages/DRESimplificado'
 import TabelaPrecosPage from '@/pages/TabelaPrecos'
 import NotFound from '@/pages/NotFound'
 
@@ -48,6 +50,7 @@ export default function App() {
               <Route path="/propostas/:id" element={<PropostaDetalhePage />} />
               <Route path="/contratos" element={<ContratosPage />} />
               <Route path="/faturamentos" element={<FaturamentosPage />} />
+              <Route path="/minhas-comissoes" element={<ComissoesPage />} />
 
               {/* Rotas de engenharia e produção: bloqueadas para vendedor */}
               <Route element={<ProtectedRoute bloquearVendedor />}>
@@ -67,6 +70,8 @@ export default function App() {
                 <Route path="/fluxo-caixa" element={<FluxoCaixaPage />} />
                 <Route path="/contas-receber" element={<ContasReceberPage />} />
                 <Route path="/contas-pagar" element={<ContasPagarPage />} />
+                <Route path="/comissoes" element={<ComissoesPage />} />
+                <Route path="/dre" element={<DRESimplificadoPage />} />
                 <Route path="/tabela-precos" element={<TabelaPrecosPage />} />
                 <Route path="/parametros" element={<ParametrosPage />} />
                 <Route path="/usuarios" element={<UsuariosPage />} />

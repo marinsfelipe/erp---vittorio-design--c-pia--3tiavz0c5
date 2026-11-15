@@ -27,6 +27,8 @@ import {
   CreditCard,
   BarChart3,
   ArrowLeftRight,
+  HandCoins,
+  Calculator,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -166,6 +168,7 @@ export default function Layout() {
           icon: CreditCard,
           adminOnly: true,
         },
+        { href: '/minhas-comissoes', label: 'Minhas Comissões', icon: HandCoins, adminOnly: false },
         { href: '/catalogo', label: 'Catálogo de Produtos', icon: Package, adminOnly: false },
         { href: '/clientes', label: 'Clientes', icon: Building2, adminOnly: false },
       ]
@@ -203,9 +206,21 @@ export default function Layout() {
           adminOnly: true,
         },
         {
-          href: '/fluxo-caixa',
-          label: 'Fluxo de Caixa',
-          icon: ArrowLeftRight,
+          href: '/contas-pagar',
+          label: 'Contas a Pagar',
+          icon: CreditCard,
+          adminOnly: true,
+        },
+        {
+          href: '/comissoes',
+          label: 'Comissões',
+          icon: HandCoins,
+          adminOnly: true,
+        },
+        {
+          href: '/dre',
+          label: 'DRE Simplificado',
+          icon: Calculator,
           adminOnly: true,
         },
         {

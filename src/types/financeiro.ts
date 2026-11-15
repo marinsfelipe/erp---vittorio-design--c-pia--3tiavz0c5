@@ -158,3 +158,46 @@ export const LABEL_STATUS_CONTA_PAGAR: Record<string, string> = {
 export function saldoAbertoPagar(conta: ContaPagar): number {
   return Math.max(0, (Number(conta.valor) || 0) - (Number(conta.valor_pago) || 0))
 }
+
+// ---------------------------------------------------------------------------
+// Comissões (Funcionalidade 4)
+// ---------------------------------------------------------------------------
+
+export type StatusComissao = 'prevista' | 'paga' | 'cancelada'
+
+export const LABEL_STATUS_COMISSAO: Record<string, string> = {
+  prevista: 'Prevista',
+  paga: 'Paga',
+  cancelada: 'Cancelada',
+}
+
+export interface Comissao {
+  id: string
+  vendedor: string
+  proposta: string
+  proposta_numero: string
+  cliente_nome: string
+  valor_base: number
+  percentual: number
+  valor: number
+  status: StatusComissao
+  data_pagamento?: string
+  observacoes?: string
+  criado_por: string
+  expand?: {
+    vendedor?: { id: string; name?: string; email?: string }
+    proposta?: { id: string; numero: string }
+  }
+  created?: string
+  updated?: string
+}
+
+export interface FiltrosComissoes {
+  vendedor?: string
+  status?: string
+}
+
+/** Percentual de comissão do vendedor (campo de users/usuarios_perfil, 0–100) */
+export interface PercentualComissaoInput {
+  percentual_comissao?: number | null
+}

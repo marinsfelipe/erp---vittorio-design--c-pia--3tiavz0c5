@@ -332,6 +332,7 @@ export interface UsuarioPerfil {
   email?: string
   perfil: PerfilUsuario
   status: 'pendente' | 'aprovado' | 'bloqueado'
+  percentual_comissao?: number
   created?: string
   updated?: string
 }
