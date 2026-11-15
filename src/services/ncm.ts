@@ -1,5 +1,6 @@
 import pb from '@/lib/pocketbase/client'
 import type { Bom } from '@/types/erp'
+import { ClientResponseError } from 'pocketbase'
 
 /**
  * Serviço da classificação automática de NCM (IA, agentes nativos Skip Cloud).
@@ -32,39 +33,44 @@ export interface ResumoNcm {
   erros?: number
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const token = pb.authStore.token
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token,
-    },
-    body: JSON.stringify(body || {}),
-  })
-  const texto = await resp.text()
-  let dados: any = null
-  try {
-    dados = texto ? JSON.parse(texto) : null
-  } catch {
-    dados = null
+/**
+ * As rotas /backend/v1/custom/** precisam ser chamadas via `pb.send` (que prefixa
+ * o host correto do backend Skip Cloud e envia o token de autenticação) — um
+ * `fetch` relativo cairia no host estático do app e retornaria 405.
+ */
+
+/** Extrai a mensagem legível de um erro do PocketBase (ClientResponseError) ou genérico. */
+function mensagemErro(err: unknown, fallback: string): string {
+  if (err instanceof ClientResponseError) {
+    const detalhe = (err.response as any)?.message || (err.response as any)?.detail || ''
+    return detalhe || err.message || fallback
   }
-  if (!resp.ok) {
-    const msg = (dados && (dados.message || dados.detail)) || `Erro ${resp.status}`
-    throw new Error(msg)
-  }
-  return dados as T
+  if (err instanceof Error && err.message) return err.message
+  return fallback
 }
 
 export const ncmService = {
   /** Dispara o lote de classificação (roda em segundo plano no backend). */
   async disparar(): Promise<{ ok: boolean; total: number; estado: string; mensagem: string }> {
-    return await postJson('/backend/v1/custom/ncm/classificar', {})
+    try {
+      return (await pb.send('/backend/v1/custom/ncm/classificar', {
+        method: 'POST',
+        body: {},
+      })) as { ok: boolean; total: number; estado: string; mensagem: string }
+    } catch (err: unknown) {
+      throw new Error(mensagemErro(err, 'Erro ao iniciar o lote de classificação de NCMs.'))
+    }
   },
 
-  /** Consulta progresso do lote. */
+  /** Consulta progresso do lote (GET — método registrado no hook). */
   async progresso(): Promise<ProgressoNcm> {
-    return await postJson('/backend/v1/custom/ncm/progresso', {})
+    try {
+      return (await pb.send('/backend/v1/custom/ncm/progresso', {
+        method: 'GET',
+      })) as ProgressoNcm
+    } catch (err: unknown) {
+      throw new Error(mensagemErro(err, 'Erro ao consultar o progresso da classificação.'))
+    }
   },
 
   /** Confirma sugestão de NCM (média/baixa) — vira NCM válido, origem 'manual'. */
