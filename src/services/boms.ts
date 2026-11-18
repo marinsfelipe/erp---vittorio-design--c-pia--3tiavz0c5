@@ -127,7 +127,18 @@ export const bomsService = {
     const ordenados = [...items].sort((a, b) => (depthOf.get(a.id) ?? 0) - (depthOf.get(b.id) ?? 0))
 
     for (const it of ordenados) {
-      const parentRealId = it.parent_id ? idMap.get(it.parent_id) || it.parent_id : ''
+      // parent_id só é enviado quando resolve para um id REAL de bom_items
+      // (existente ou já criado nesta passada). Id temporário não resolvido —
+      // por exemplo a raiz virtual "virtual-<bomId>" que a UI usa quando o BOM
+      // ainda não tem item produto_final — é gravado como '' (o buildTree
+      // pendura itens sem parent direto sob a raiz), pois o PocketBase rejeita
+      // relação inválida com 400.
+      let parentRealId = ''
+      if (it.parent_id) {
+        const resolvido = idMap.get(it.parent_id)
+        if (resolvido) parentRealId = resolvido
+        else if (existingMap.has(it.parent_id)) parentRealId = it.parent_id
+      }
 
       const payload: Omit<BomItem, 'id' | 'created' | 'updated'> = {
         bom_id: bomId,

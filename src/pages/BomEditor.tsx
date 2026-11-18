@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/select'
 import { ArrowLeft, Save, Calculator, FolderTree, Search, Check } from 'lucide-react'
 import { toast } from 'sonner'
+import { getErrorMessage } from '@/lib/pocketbase/errors'
 import { CategoriaProdutoSelector } from '@/components/bom/CategoriaProdutoSelector'
 
 export default function BomEditorPage() {
@@ -281,7 +282,7 @@ export default function BomEditorPage() {
       setItems(updated)
     } catch (err: any) {
       console.error(err)
-      toast.error('Erro ao salvar itens do BOM.')
+      toast.error(`Erro ao salvar o BOM: ${getErrorMessage(err)}`)
     } finally {
       setIsSaving(false)
     }

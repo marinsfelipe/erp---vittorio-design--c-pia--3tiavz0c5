@@ -488,10 +488,12 @@ onRecordUpdate('boms', (e) => {
 // de update só reclassifica quando NCM vazio/pendente, e aqui o registro já
 // fica pronto_nf, então não há loop de gravação infinito).
 onRecordCreate('bom_items', (e) => {
-  const app = e.app
-  const bomId = e.record.getString('bom_id') || ''
-  if (!bomId) return
-  try {
+  // Aplica as regras de NCM ao produto dono (BOM) quando um item é criado.
+  // Origem 'manual' nunca é sobrescrita; BOM já pronto_nf não é reclassificado.
+  // Qualquer falha aqui é apenas logada — JAMAIS impede a persistência do item:
+  // e.next() é chamado em TODOS os caminhos (era o bug que bloqueava 400 o
+  // cadastro de itens no editor de BOM).
+  function aplicarRegrasAoProduto(app, bomId) {
     const rec = app.findRecordById('boms', bomId)
     if ((rec.getString('ncm_origem') || '') === 'manual') return
     if (rec.getString('ncm') && rec.getString('ncm_status') === 'pronto_nf') return
@@ -566,16 +568,23 @@ onRecordCreate('bom_items', (e) => {
       rec.set('ncm_classificado_em', new Date().toISOString())
       app.save(rec)
     }
-  } catch (err) {
-    console.log('[NCM] Falha na aplicação automática ao BOM ' + bomId + ': ' + String(err))
   }
+
+  const app = e.app
+  const bomId = e.record.getString('bom_id') || ''
+  if (bomId) {
+    try {
+      aplicarRegrasAoProduto(app, bomId)
+    } catch (err) {
+      console.log('[NCM] Falha na aplicação automática ao BOM ' + bomId + ': ' + String(err))
+    }
+  }
+  e.next()
 })
 
 onRecordUpdate('bom_items', (e) => {
-  const app = e.app
-  const bomId = e.record.getString('bom_id') || ''
-  if (!bomId) return
-  try {
+  // Mesma regra do create (função local: o JSVM não compartilha top-level).
+  function aplicarRegrasAoProduto(app, bomId) {
     const rec = app.findRecordById('boms', bomId)
     if ((rec.getString('ncm_origem') || '') === 'manual') return
     if (rec.getString('ncm') && rec.getString('ncm_status') === 'pronto_nf') return
@@ -650,7 +659,16 @@ onRecordUpdate('bom_items', (e) => {
       rec.set('ncm_classificado_em', new Date().toISOString())
       app.save(rec)
     }
-  } catch (err) {
-    console.log('[NCM] Falha na aplicação automática ao BOM ' + bomId + ': ' + String(err))
   }
+
+  const app = e.app
+  const bomId = e.record.getString('bom_id') || ''
+  if (bomId) {
+    try {
+      aplicarRegrasAoProduto(app, bomId)
+    } catch (err) {
+      console.log('[NCM] Falha na aplicação automática ao BOM ' + bomId + ': ' + String(err))
+    }
+  }
+  e.next()
 })
