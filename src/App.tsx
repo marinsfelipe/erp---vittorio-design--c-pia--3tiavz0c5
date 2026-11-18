@@ -62,6 +62,8 @@ export default function App() {
                 <Route path="/boms" element={<BomsPage />} />
                 <Route path="/boms/:id" element={<BomEditorPage />} />
                 <Route path="/precificacao" element={<PrecificacaoPage />} />
+                {/* Com BOM pré-selecionado — links de BOMs e do editor de BOM */}
+                <Route path="/precificacao/:id" element={<PrecificacaoPage />} />
                 <Route path="/compras" element={<ComprasPage />} />
                 <Route path="/compras/ordens" element={<ListaComprasPage />} />
               </Route>

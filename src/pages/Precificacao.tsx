@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { bomsService } from '@/services/boms'
 import { parametrosService } from '@/services/parametros'
 import { calcularMarkupDivisor, montarPercentuais } from '@/utils/pricing'
@@ -35,6 +35,7 @@ import { toast } from 'sonner'
 
 export default function PrecificacaoPage() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
 
   const [bomsList, setBomsList] = useState<Bom[]>([])
   const [selectedBomId, setSelectedBomId] = useState<string>(id || '')
@@ -64,6 +65,12 @@ export default function PrecificacaoPage() {
         pMap[p.chave] = p.valor_percentual
       })
 
+      // Id vindo da URL (links de BOMs e do editor de BOM usam /precificacao/:id)
+      if (id && !allBoms.some((b) => b.id === id)) {
+        toast.error('SKU/BOM não encontrado para precificação')
+        navigate('/404', { replace: true })
+        return
+      }
       const targetId = id || (allBoms.length > 0 ? allBoms[0].id : '')
       setSelectedBomId(targetId)
     } catch (err: any) {
@@ -103,6 +110,12 @@ export default function PrecificacaoPage() {
   useEffect(() => {
     loadInitialData()
   }, [])
+
+  // Sincroniza a seleção quando o parâmetro :id da URL muda
+  // (ex.: navegar de /precificacao para /precificacao/<outro-id>)
+  useEffect(() => {
+    if (id) setSelectedBomId(id)
+  }, [id])
 
   useEffect(() => {
     if (selectedBomId) {
