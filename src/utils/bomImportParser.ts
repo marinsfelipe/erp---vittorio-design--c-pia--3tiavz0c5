@@ -266,25 +266,43 @@ export async function lerPlanilhaXlsx(file: File): Promise<Record<string, unknow
       ).includes(c),
     ),
   )
-  if (idxCab === -1) idxCab = 0 // sem cabeçalho reconhecível: usa a 1ª linha
+  const semCabecalhoReconhecivel = idxCab === -1
+  if (semCabecalhoReconhecivel) {
+    // Nenhum título conhecido: se a 1ª linha tem célula numérica, ela já é
+    // DADO (linha de BOM), não cabeçalho — trata a planilha inteira como sem
+    // cabeçalho. Cabeçalho real não tem célula numérica.
+    const primeiraLinhaTemNumero = (mat[0] as unknown[]).some((c) => {
+      const s = String(c ?? '').trim()
+      return s !== '' && !isNaN(Number(s))
+    })
+    idxCab = primeiraLinhaTemNumero ? -1 : 0
+  }
 
-  const cabecalho = normalizados[idxCab]
+  const cabecalho = semCabecalhoReconhecivel ? null : normalizados[idxCab]
   const nomear = (valorBruto: string, idx: number): string => {
     if (valorBruto && !SEM_CABECALHO.test(valorBruto)) return valorBruto
     return `column_${idx + 1}` // nome estável para coluna sem título
   }
 
   const rows: Record<string, unknown>[] = []
-  for (let i = idxCab + 1; i < mat.length; i++) {
+  const inicio = semCabecalhoReconhecivel ? 0 : idxCab + 1
+  for (let i = inicio; i < mat.length; i++) {
     const linha = mat[i] as unknown[]
     if (linha.every((c) => c === undefined || c === null || String(c).trim() === '')) continue
     const obj: Record<string, unknown> = {}
-    cabecalho.forEach((c, idx) => {
-      obj[nomear(c, idx)] = linha[idx] ?? ''
-    })
-    // Células além do alcance do cabeçalho (colunas extras sem título à direita)
-    for (let idx = cabecalho.length; idx < linha.length; idx++) {
-      obj[`column_${idx + 1}`] = linha[idx] ?? ''
+    if (cabecalho) {
+      cabecalho.forEach((c, idx) => {
+        obj[nomear(c, idx)] = linha[idx] ?? ''
+      })
+      // Células além do alcance do cabeçalho (colunas extras sem título à direita)
+      for (let idx = cabecalho.length; idx < linha.length; idx++) {
+        obj[`column_${idx + 1}`] = linha[idx] ?? ''
+      }
+    } else {
+      // Planilha inteira sem cabeçalho: todas as colunas viram column_N
+      linha.forEach((c, idx) => {
+        obj[`column_${idx + 1}`] = c ?? ''
+      })
     }
     rows.push(obj)
   }
