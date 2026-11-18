@@ -2,6 +2,7 @@ import * as XLSX from 'xlsx'
 import type { TipoItemBom } from '@/types/erp'
 import { aceitaFilhos } from '@/types/erp'
 import { parseCsvOrTsv } from '@/utils/csvParser'
+import { lerTextoArquivo } from '@/utils/textDecode'
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -182,7 +183,7 @@ export async function lerPlanilhaXlsx(file: File): Promise<Record<string, unknow
 
 /** Lê um arquivo .csv (vírgula, ponto-e-vírgula ou tabulação). */
 export async function lerPlanilhaCsv(file: File): Promise<Record<string, unknown>[]> {
-  const text = await file.text()
+  const text = await lerTextoArquivo(file) // trata windows-1252 vs UTF-8
   const { rows, headers } = parseCsvOrTsv(text)
   return rows.map((r) => {
     const obj: Record<string, unknown> = {}

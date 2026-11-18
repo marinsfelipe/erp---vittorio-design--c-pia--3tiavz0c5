@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { componentesService } from '@/services/componentes'
 import { parseCsvOrTsv, mapRowToComponente } from '@/utils/csvParser'
+import { lerTextoArquivo } from '@/utils/textDecode'
 import { formatBRL } from '@/utils/formatters'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -56,7 +57,7 @@ export default function ImportarPage() {
     setImportSummary(null)
 
     try {
-      const text = await file.text()
+      const text = await lerTextoArquivo(file)
       const { rows } = parseCsvOrTsv(text)
 
       if (rows.length === 0) {

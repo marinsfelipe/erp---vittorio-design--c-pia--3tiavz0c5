@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx'
 import { parseCsvOrTsv } from '@/utils/csvParser'
+import { lerTextoArquivo } from '@/utils/textDecode'
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -161,8 +162,8 @@ export async function lerPlanilhaPrecos(file: File): Promise<Record<string, unkn
       return obj
     })
   }
-  // CSV: vírgula, ponto-e-vírgula ou tabulação
-  const text = await file.text()
+  // CSV: vírgula, ponto-e-vírgula ou tabulação (detecta UTF-8 × windows-1252)
+  const text = await lerTextoArquivo(file)
   const { rows, headers } = parseCsvOrTsv(text)
   return rows.map((r) => {
     const obj: Record<string, unknown> = {}
