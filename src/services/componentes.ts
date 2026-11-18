@@ -2,6 +2,20 @@ import pb from '@/lib/pocketbase/client'
 import type { Componente } from '@/types/erp'
 
 export const componentesService = {
+  /**
+   * Contagem leve de componentes (usa o totalItems da paginação do
+   * PocketBase em vez de baixar todas as linhas — a home não precisa
+   * do catálogo inteiro para mostrar "N itens").
+   */
+  async count(): Promise<number> {
+    try {
+      const res = await pb.collection('componentes').getList(1, 1)
+      return res.totalItems
+    } catch {
+      return 0
+    }
+  },
+
   async getAll(): Promise<Componente[]> {
     return await pb.collection('componentes').getFullList<Componente>({
       sort: 'codigo',

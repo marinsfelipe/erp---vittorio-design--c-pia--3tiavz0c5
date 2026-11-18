@@ -31,12 +31,12 @@ export default function IndexPage() {
   useEffect(() => {
     async function loadOverview() {
       try {
-        const [comps, bomsList, params] = await Promise.all([
-          componentesService.getAll(),
+        const [compsCount, bomsList, params] = await Promise.all([
+          componentesService.count(),
           bomsService.getAll(),
           parametrosService.getAll(),
         ])
-        setComponentesCount(comps.length)
+        setComponentesCount(compsCount)
         setBoms(bomsList)
         setParametros(params)
       } catch (e) {

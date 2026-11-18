@@ -44,6 +44,12 @@ export interface NoImportado {
   avisos: string[] // avisos do nó (não bloqueantes)
   /** Custo unitário por rolagem (fabricados) — preenchido no preview. */
   custoRolado?: number
+  /**
+   * Tipo ausente ou não reconhecido na planilha: resolvido no fim da
+   * interpretação (raiz → produto_final; com filhos → componente_interno;
+   * folha → componente_terceiros) com aviso, sem bloquear a importação.
+   */
+  tipoDesconhecido?: boolean
 }
 
 export interface BomsInterpretados {
@@ -67,12 +73,23 @@ const normalizar = (s: string) =>
 
 const chaves = (...nomes: string[]) => nomes.map(normalizar)
 
+/** Cabeçalhos gerados pelo Excel/SheetJS quando a coluna não tem título. */
+const SEM_CABECALHO = /^(column_\w*|col(umn)?\d*|empty(_\d+)?|[a-z]|__empty.*|_?)$/
+
 const TIPOS_VALIDOS: TipoItemBom[] = [
   'produto_final',
   'produto_semi_acabado',
   'componente_interno',
   'componente_terceiros',
 ]
+
+/** Rótulo amigável para o aviso de tipo inferido. */
+const labelAssumido = (t: TipoItemBom): string =>
+  t === 'produto_final'
+    ? 'Produto Final'
+    : t === 'componente_interno'
+      ? 'Componente Interno'
+      : 'Componente de Terceiros'
 
 export const normalizarTipo = (raw: string): TipoItemBom | null => {
   const n = normalizar(raw)
@@ -116,6 +133,38 @@ function mapearLinha(row: Record<string, unknown>, numeroLinha: number): LinhaIm
     return ''
   }
 
+  // Colunas sem cabeçalho nomeado (ex.: "column_2", "__EMPTY_1"): o código do
+  // componente costuma ser a primeira dessas colunas com valor — usado como
+  // fallback quando nenhuma coluna de código nomeada foi encontrada. Números
+  // puros são ignorados (devem ser nível/quantidade/custo, não código).
+  const primeiraSemCabecalho = (): string => {
+    for (const [k, v] of Object.entries(row)) {
+      if (!SEM_CABECALHO.test(k)) continue
+      const s = v !== undefined && v !== null ? String(v).trim() : ''
+      if (s !== '' && !/^\d+([.,]\d+)?$/.test(s)) return s
+    }
+    return ''
+  }
+  const codigoSemCabecalho = primeiraSemCabecalho()
+  // Descrição: a coluna sem título seguinte à do código (ex.: column_3) costuma
+  // ser a descrição; cai nela quando nenhuma coluna de descrição nomeada existe.
+  let descricaoSemCabecalho = ''
+  if (codigoSemCabecalho) {
+    let achouCodigo = false
+    for (const [k, v] of Object.entries(row)) {
+      if (!SEM_CABECALHO.test(k)) continue
+      const s = v !== undefined && v !== null ? String(v).trim() : ''
+      if (!achouCodigo) {
+        if (s === codigoSemCabecalho) achouCodigo = true
+        continue
+      }
+      if (s !== '' && s !== codigoSemCabecalho) {
+        descricaoSemCabecalho = s
+        break
+      }
+    }
+  }
+
   // Nível pode vir como "0", "0.0" (xlsx numérico) ou "Nível 2"
   const rawNivel = buscar(...chaves('nivel', 'level', 'nvl'))
   const nivel = parseInt(rawNivel.replace(/[^\d]/g, ''), 10)
@@ -145,8 +194,22 @@ function mapearLinha(row: Record<string, unknown>, numeroLinha: number): LinhaIm
   return {
     linha: numeroLinha,
     nivel: nivelOk ? nivel : -1,
-    codigo: buscar(...chaves('codigo', 'codigo_componente', 'cod', 'code', 'referencia')),
-    descricao: buscar(...chaves('descricao', 'description', 'desc', 'nome', 'item')),
+    codigo:
+      buscar(
+        ...chaves(
+          'codigo',
+          'codigo_componente',
+          'codigo_do_componente',
+          'cod',
+          'code',
+          'part_number',
+          'referencia',
+          'ref',
+        ),
+      ) || codigoSemCabecalho,
+    descricao:
+      buscar(...chaves('descricao', 'description', 'desc', 'nome', 'item')) ||
+      descricaoSemCabecalho,
     tipo: tipo ?? ('componente_terceiros' as TipoItemBom),
     tipoBruto,
     categoria: buscar(...chaves('categoria', 'category', 'grupo')) || 'Geral',
@@ -163,22 +226,69 @@ function mapearLinha(row: Record<string, unknown>, numeroLinha: number): LinhaIm
 // Leitura do arquivo (xlsx e csv)
 // ---------------------------------------------------------------------------
 
-/** Reindexa as chaves de uma linha usando os cabeçalhos normalizados. */
-function normalizarChaves(row: Record<string, unknown>): Record<string, unknown> {
-  const obj: Record<string, unknown> = {}
-  for (const [k, v] of Object.entries(row)) {
-    obj[normalizar(k)] = v
-  }
-  return obj
-}
-
-/** Lê um arquivo .xlsx/.xls e devolve as linhas com chaves normalizadas. */
+/**
+ * Lê um arquivo .xlsx/.xls e devolve as linhas com chaves normalizadas.
+ * Aceita planilhas cujos cabeçalhos NÃO estão na primeira linha física
+ * (títulos, linhas em branco, logo acima da tabela): encontra a linha que
+ * contém os títulos conhecidos e reidrata as linhas a partir dela. Colunas
+ * sem título recebem um nome genérico (column_2, column_3...) em vez de
+ * "undefined"/vazio, e o código/descrição caem nelas via fallback em
+ * mapearLinha.
+ */
 export async function lerPlanilhaXlsx(file: File): Promise<Record<string, unknown>[]> {
   const buffer = await file.arrayBuffer()
   const wb = XLSX.read(buffer, { type: 'array' })
   const sheet = wb.Sheets[wb.SheetNames[0]]
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
-  return rows.map(normalizarChaves)
+  if (!sheet) return []
+
+  const mat = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+    header: 1,
+    blankrows: false,
+    defval: '',
+  })
+  if (mat.length === 0) return []
+
+  // Localiza a linha de cabeçalho: a primeira com pelo menos 1 célula de
+  // texto que case com uma das colunas conhecidas (nivel/codigo/...).
+  const normalizados = mat.map((linha) =>
+    (linha as unknown[]).map((c) => normalizar(String(c ?? ''))),
+  )
+  let idxCab = normalizados.findIndex((linha) =>
+    linha.some((c) =>
+      chaves(
+        'nivel',
+        'codigo',
+        'codigo_componente',
+        'codigo_do_componente',
+        'descricao',
+        'tipo',
+        'quantidade',
+      ).includes(c),
+    ),
+  )
+  if (idxCab === -1) idxCab = 0 // sem cabeçalho reconhecível: usa a 1ª linha
+
+  const cabecalho = normalizados[idxCab]
+  const nomear = (valorBruto: string, idx: number): string => {
+    if (valorBruto && !SEM_CABECALHO.test(valorBruto)) return valorBruto
+    return `column_${idx + 1}` // nome estável para coluna sem título
+  }
+
+  const rows: Record<string, unknown>[] = []
+  for (let i = idxCab + 1; i < mat.length; i++) {
+    const linha = mat[i] as unknown[]
+    if (linha.every((c) => c === undefined || c === null || String(c).trim() === '')) continue
+    const obj: Record<string, unknown> = {}
+    cabecalho.forEach((c, idx) => {
+      obj[nomear(c, idx)] = linha[idx] ?? ''
+    })
+    // Células além do alcance do cabeçalho (colunas extras sem título à direita)
+    for (let idx = cabecalho.length; idx < linha.length; idx++) {
+      obj[`column_${idx + 1}`] = linha[idx] ?? ''
+    }
+    rows.push(obj)
+  }
+  return rows
 }
 
 /** Lê um arquivo .csv (vírgula, ponto-e-vírgula ou tabulação). */
@@ -187,9 +297,13 @@ export async function lerPlanilhaCsv(file: File): Promise<Record<string, unknown
   const { rows, headers } = parseCsvOrTsv(text)
   return rows.map((r) => {
     const obj: Record<string, unknown> = {}
-    for (const h of headers) {
-      obj[normalizar(h)] = (r as Record<string, string>)[h]
-    }
+    headers.forEach((h, idx) => {
+      const nh = normalizar(h)
+      // Coluna sem título no CSV também vira column_N (fallback de código);
+      // índice garante que duas colunas sem título não colidam na mesma chave.
+      const chave = nh && !SEM_CABECALHO.test(nh) ? nh : `column_${idx + 1}`
+      obj[chave] = (r as Record<string, string>)[h]
+    })
     return obj
   })
 }
@@ -239,9 +353,8 @@ export function interpretarBoms(rows: Record<string, unknown>[]): BomsInterpreta
     if (linha.nivel === -1) no.erros.push('Nível inválido ou ausente')
     if (!linha.codigo) no.erros.push('Código ausente')
     if (!linha.descricao) no.erros.push('Descrição ausente')
-    if (!normalizarTipo(linha.tipoBruto)) {
-      no.erros.push(`Tipo inválido ("${linha.tipoBruto || 'vazio'}")`)
-    }
+    // Tipo ausente ou não reconhecido NÃO bloqueia: resolvido no fim com aviso
+    if (!normalizarTipo(linha.tipoBruto)) no.tipoDesconhecido = true
     if (!linha.temQuantidade) no.avisos.push('Quantidade ausente')
     else if (linha.quantidade <= 0) no.avisos.push('Quantidade igual a zero')
     if (!linha.temCusto) no.avisos.push('Custo unitário ausente')
@@ -274,7 +387,7 @@ export function interpretarBoms(rows: Record<string, unknown>[]): BomsInterpreta
         no.erros.push(
           `Salto de nível (de ${pai.linha.nivel} para ${linha.nivel}): não há pai imediato`,
         )
-      } else if (!aceitaFilhos(pai.linha.tipo)) {
+      } else if (!aceitaFilhos(pai.linha.tipo) && !pai.tipoDesconhecido) {
         no.erros.push(`Pai "${pai.linha.codigo}" é ${pai.linha.tipo} (folha) e não aceita filhos`)
       } else {
         pai.filhos.push(no)
@@ -287,6 +400,27 @@ export function interpretarBoms(rows: Record<string, unknown>[]): BomsInterpreta
     for (const e of no.erros) erros.push({ linha: linha.linha, codigo: linha.codigo, motivo: e })
     for (const a of no.avisos) avisos.push({ linha: linha.linha, codigo: linha.codigo, motivo: a })
   }
+
+  // --- Tipos ausentes/inválidos: inferir e avisar (não bloquear) ------------
+  const resolverTipo = (no: NoImportado) => {
+    if (no.tipoDesconhecido) {
+      const assumido: TipoItemBom =
+        no.linha.nivel === 0
+          ? 'produto_final'
+          : no.filhos.length > 0
+            ? 'componente_interno'
+            : 'componente_terceiros'
+      no.linha.tipo = assumido
+      no.tipoDesconhecido = false
+      avisos.push({
+        linha: no.linha.linha,
+        codigo: no.linha.codigo,
+        motivo: `Tipo ${no.linha.tipoBruto ? `inválido ("${no.linha.tipoBruto}")` : 'ausente'} — assumido "${labelAssumido(assumido)}"`,
+      })
+    }
+    no.filhos.forEach(resolverTipo)
+  }
+  raizes.forEach(resolverTipo)
 
   // --- Rolagem de custo nos nós fabricados (preview) ------------------------
   const rolar = (no: NoImportado): number => {
