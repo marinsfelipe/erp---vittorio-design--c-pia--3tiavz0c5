@@ -18,12 +18,15 @@
  *
  * IMPORTANTE (JSVM): callbacks rodam em pool separado — TODA a lógica vive
  * DENTRO do callback. Rota custom: leitura apenas, sem e.next().
+ * Path param: a JSVM não expõe e.requestPathValue() — o accessor correto é
+ * e.request.pathValue('id') (TypeError "no member 'requestPathValue'" caso
+ * contrário, crash que deixava a página em branco).
  */
 
 routerAdd('GET', '/backend/v1/custom/propostas/{id}/para-cliente', (e) => {
   const app = e.app
   const info = e.requestInfo()
-  const id = e.requestPathValue('id')
+  const id = e.request.pathValue('id')
 
   // ------------------------------ autenticação -----------------------------
   const auth = info.auth
