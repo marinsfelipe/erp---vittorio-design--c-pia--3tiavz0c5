@@ -32,11 +32,14 @@ import {
   Receipt,
   PlusCircle,
   Tag,
+  Trash2,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { MotivoPerdaDialog } from '@/components/pipeline/MotivoPerdaDialog'
 import { GerarContratoDialog } from '@/components/contratos/GerarContratoDialog'
 import { AdicionarProdutoAvulsoDialog } from '@/components/propostas/AdicionarProdutoAvulsoDialog'
+import { AdicionarItemCatalogoDialog } from '@/components/propostas/AdicionarItemCatalogoDialog'
 import { faturamentosService } from '@/services/faturamentos'
 import { clientesService } from '@/services/clientes'
 import { parametrosService } from '@/services/parametros'
@@ -98,6 +101,18 @@ export default function PropostaDetalhePage() {
   const [gerarContratoOpen, setGerarContratoOpen] = useState(false)
   const [gerandoFaturamento, setGerandoFaturamento] = useState(false)
   const [produtoAvulsoOpen, setProdutoAvulsoOpen] = useState(false)
+  const [catalogoOpen, setCatalogoOpen] = useState(false)
+  const [editingQtyItemId, setEditingQtyItemId] = useState<string | null>(null)
+  const [inlineQtyText, setInlineQtyText] = useState<string>('')
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null)
+  const [isSubmittingQty, setIsSubmittingQty] = useState(false)
+  const [temFaturamento, setTemFaturamento] = useState(false)
+
+  const podeEditarItens =
+    proposta != null &&
+    proposta.status !== 'perdida' &&
+    proposta.status !== 'aguardando_aprovacao' &&
+    !(proposta.status === 'vendida' && temFaturamento)
 
   const carregarAuditorias = async (propId: string) => {
     if (isAdmin) {
@@ -135,6 +150,10 @@ export default function PropostaDetalhePage() {
       setProposta(p)
       setItens(its)
       setLimiteVendedor(limite)
+      faturamentosService
+        .getByProposta(p.id)
+        .then((fats) => setTemFaturamento(fats.length > 0))
+        .catch(() => setTemFaturamento(false))
       carregarAuditorias(p.id)
     } catch (err: any) {
       console.error(err)
@@ -493,6 +512,90 @@ export default function PropostaDetalhePage() {
     }
   }
 
+  // Handlers de edição de itens (quantidade e remoção)
+  const podeEditarItensAgora = () => {
+    if (proposta?.status === 'perdida') {
+      toast.info('Proposta perdida não pode ser editada.')
+      return false
+    }
+    if (proposta?.status === 'aguardando_aprovacao') {
+      toast.info('Proposta aguardando aprovação de desconto não pode ser editada.')
+      return false
+    }
+    if (proposta?.status === 'vendida' && temFaturamento) {
+      toast.warning(
+        'Esta proposta já foi faturada. Não é possível alterar os itens para não quebrar o vínculo com o faturamento/comissões.',
+      )
+      return false
+    }
+    return true
+  }
+
+  const handleStartInlineQtyEdit = (item: PropostaItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!podeEditarItensAgora()) return
+    setEditingQtyItemId(item.id)
+    setInlineQtyText(String(item.quantidade || ''))
+  }
+
+  const handleCancelInlineQtyEdit = () => {
+    setEditingQtyItemId(null)
+    setInlineQtyText('')
+  }
+
+  const handleSaveInlineQtyEdit = async (item: PropostaItem) => {
+    if (!proposta) return
+    const num = Number(inlineQtyText.replace(',', '.'))
+    if (isNaN(num) || num <= 0) {
+      toast.error('Informe uma quantidade válida (maior que zero).')
+      return
+    }
+    if (num === item.quantidade) {
+      setEditingQtyItemId(null)
+      return
+    }
+    setIsSubmittingQty(true)
+    try {
+      const resultado = await propostasService.atualizarQuantidadeItem({
+        propostaId: proposta.id,
+        itemId: item.id,
+        novaQuantidade: num,
+        isVendedor,
+      })
+      setProposta(resultado.proposta)
+      setItens((prev) => prev.map((i) => (i.id === resultado.item.id ? resultado.item : i)))
+      setEditingQtyItemId(null)
+      toast.success(`Quantidade de ${item.sku} atualizada para ${num}.`)
+      if (resultado.aguardandoAprovacao) {
+        toast.warning(
+          `Com a alteração, a proposta requer liberação do administrador por exceder o limite de desconto (${limiteVendedor}%).`,
+        )
+      }
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao atualizar quantidade.')
+    } finally {
+      setIsSubmittingQty(false)
+    }
+  }
+
+  const handleRemoverItem = async (item: PropostaItem) => {
+    if (!proposta || !podeEditarItensAgora()) return
+    if (!window.confirm(`Remover o item ${item.sku} - ${item.nome_produto} da proposta?`)) return
+    setRemovingItemId(item.id)
+    try {
+      const propostaAtualizada = await propostasService.removerItem(proposta.id, item.id)
+      setProposta(propostaAtualizada)
+      setItens((prev) => prev.filter((i) => i.id !== item.id))
+      toast.success(`Item ${item.sku} removido da proposta.`)
+    } catch (err: any) {
+      console.error(err)
+      toast.error(err?.message || 'Erro ao remover item da proposta.')
+    } finally {
+      setRemovingItemId(null)
+    }
+  }
+
   const handleConfirmarPerda = async () => {
     if (!proposta) return
     if (!motivoTexto.trim()) {
@@ -836,17 +939,39 @@ export default function PropostaDetalhePage() {
             <CardTitle className="text-lg font-bold">Produtos da Proposta</CardTitle>
             <CardDescription>Produtos normais e avulsos incluídos nesta proposta</CardDescription>
           </div>
-          {proposta.status !== 'perdida' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setProdutoAvulsoOpen(true)}
-              className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
-            >
-              <PlusCircle className="h-4 w-4" />
-              Adicionar produto avulso
-            </Button>
-          )}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCatalogoOpen(true)}
+                disabled={!podeEditarItens}
+                className="gap-2 border-primary/30 text-primary hover:bg-primary/10"
+              >
+                <PlusCircle className="h-4 w-4" />
+                Adicionar produto do catálogo
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setProdutoAvulsoOpen(true)}
+                disabled={!podeEditarItens}
+                className="gap-2"
+              >
+                <PlusCircle className="h-4 w-4" />
+                Produto avulso
+              </Button>
+            </div>
+            {!podeEditarItens && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 max-w-xs text-right">
+                {proposta.status === 'vendida' && temFaturamento
+                  ? 'Proposta já faturada: não é possível alterar os itens (vínculo com faturamento/comissões).'
+                  : proposta.status === 'aguardando_aprovacao'
+                    ? 'Aguardando aprovação de desconto: itens bloqueados até liberação.'
+                    : 'Proposta perdida: itens não podem ser alterados.'}
+              </p>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {itens.length === 0 ? (
@@ -916,7 +1041,83 @@ export default function PropostaDetalhePage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm">
-                        {it.quantidade} {it.unidade || ''}
+                        {editingQtyItemId === it.id ? (
+                          <div
+                            className="inline-flex items-center justify-end gap-1.5"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={inlineQtyText}
+                              onChange={(e) => setInlineQtyText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  handleSaveInlineQtyEdit(it)
+                                } else if (e.key === 'Escape') {
+                                  e.preventDefault()
+                                  handleCancelInlineQtyEdit()
+                                }
+                              }}
+                              autoFocus
+                              className="w-16 px-2 py-0.5 text-right font-mono text-xs font-bold bg-background border border-primary rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
+                              disabled={isSubmittingQty}
+                            />
+                            <span className="text-[10px] text-muted-foreground">
+                              {it.unidade || ''}
+                            </span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleSaveInlineQtyEdit(it)}
+                              disabled={isSubmittingQty}
+                              className="h-6 w-6 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                              title="Salvar (Enter)"
+                            >
+                              ✓
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleCancelInlineQtyEdit}
+                              disabled={isSubmittingQty}
+                              className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                              title="Cancelar (Esc)"
+                            >
+                              ✕
+                            </Button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => handleStartInlineQtyEdit(it, e)}
+                            disabled={!podeEditarItens}
+                            className={`group inline-flex items-center gap-1 px-2 py-1 rounded-md transition-colors ${
+                              podeEditarItens
+                                ? 'hover:bg-muted/70 cursor-pointer'
+                                : 'cursor-default'
+                            }`}
+                            title={
+                              podeEditarItens
+                                ? 'Clique para editar a quantidade diretamente na linha'
+                                : undefined
+                            }
+                          >
+                            <span>{it.quantidade}</span>
+                            {it.unidade && it.unidade !== 'UN' && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {it.unidade}
+                              </span>
+                            )}
+                            {podeEditarItens && (
+                              <Pencil className="h-3 w-3 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+                            )}
+                          </button>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm">
                         {editingItemId === it.id ? (
@@ -1081,6 +1282,22 @@ export default function PropostaDetalhePage() {
                             <Tag className="h-3.5 w-3.5" />
                             {temDesconto ? 'Desc.' : 'Desc.'}
                           </Button>
+                          {podeEditarItens && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleRemoverItem(it)}
+                              disabled={removingItemId === it.id}
+                              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                              title="Remover item da proposta"
+                            >
+                              {removingItemId === it.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1135,6 +1352,14 @@ export default function PropostaDetalhePage() {
         open={produtoAvulsoOpen}
         onOpenChange={setProdutoAvulsoOpen}
         propostaId={proposta.id}
+        onSuccess={load}
+      />
+
+      <AdicionarItemCatalogoDialog
+        open={catalogoOpen}
+        onOpenChange={setCatalogoOpen}
+        propostaId={proposta.id}
+        skusExistentes={itens.map((i) => i.sku)}
         onSuccess={load}
       />
 

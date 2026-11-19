@@ -175,6 +175,97 @@ export const propostasService = {
     return createdItem
   },
 
+  /**
+   * Atualiza a quantidade de um item da proposta. Recalcula o desconto do item
+   * (mantendo o mesmo desconto unitário percentual/valor já aplicado) e os
+   * totais gerais da proposta.
+   */
+  async atualizarQuantidadeItem(params: {
+    propostaId: string
+    itemId: string
+    novaQuantidade: number
+    isVendedor?: boolean
+  }): Promise<{ proposta: Proposta; item: PropostaItem; aguardandoAprovacao: boolean }> {
+    const { propostaId, itemId, novaQuantidade, isVendedor } = params
+    const itemAtual = await pb.collection('proposta_items').getOne<PropostaItem>(itemId)
+    const propostaAtual = await this.getById(propostaId)
+    const itensAtuais = await this.getItems(propostaId)
+
+    const qtd = Math.max(0, Number(novaQuantidade) || 0)
+    if (qtd <= 0) {
+      throw new Error('A quantidade deve ser maior que zero.')
+    }
+
+    const calc = calcularDescontoItem({
+      precoUnitario: itemAtual.preco_unitario,
+      quantidade: qtd,
+      descontoTipo: itemAtual.desconto_tipo,
+      descontoValor: itemAtual.desconto_valor,
+    })
+
+    const itemAtualizado = await pb.collection('proposta_items').update<PropostaItem>(itemId, {
+      quantidade: qtd,
+      preco_liquido: calc.precoLiquido,
+      total_desconto: calc.totalDescontoItem,
+    })
+
+    const itensAtualizados = itensAtuais.map((it) => (it.id === itemId ? itemAtualizado : it))
+    return await this.salvarTotaisComLimite({
+      propostaAtual,
+      itens: itensAtualizados,
+      isVendedor,
+    })
+  },
+
+  /**
+   * Remove um item da proposta e recalcula os totais.
+   */
+  async removerItem(propostaId: string, itemId: string): Promise<Proposta> {
+    await pb.collection('proposta_items').delete(itemId)
+    return await this.recalcularTotaisProposta(propostaId)
+  },
+
+  /** Recalcula totais, grava na proposta e aplica limite de desconto do vendedor. */
+  async salvarTotaisComLimite(params: {
+    propostaAtual: Proposta
+    itens: PropostaItem[]
+    isVendedor?: boolean
+  }): Promise<{ proposta: Proposta; aguardandoAprovacao: boolean }> {
+    const { propostaAtual, itens, isVendedor } = params
+    const totais = calcularTotaisProposta(
+      itens,
+      propostaAtual.desconto_tipo,
+      propostaAtual.desconto_valor,
+    )
+
+    let novoStatus = propostaAtual.status
+    let statusAnterior = propostaAtual.status_anterior_aprovacao
+    let aguardandoAprovacao = false
+
+    if (isVendedor) {
+      const limite = await parametrosService.getLimiteDescontoVendedor()
+      if (
+        totais.percentualDescontoTotal > limite &&
+        propostaAtual.status !== 'aguardando_aprovacao'
+      ) {
+        statusAnterior = propostaAtual.status
+        novoStatus = 'aguardando_aprovacao'
+        aguardandoAprovacao = true
+      }
+    }
+
+    const propostaAtualizada = await pb.collection('propostas').update<Proposta>(propostaAtual.id, {
+      subtotal: totais.subtotal,
+      total_desconto_itens: totais.totalDescontoItens,
+      total_desconto_geral: totais.totalDescontoGeral,
+      valor_total: totais.totalFinal,
+      status: novoStatus,
+      ...(statusAnterior ? { status_anterior_aprovacao: statusAnterior } : {}),
+    })
+
+    return { proposta: propostaAtualizada, aguardandoAprovacao }
+  },
+
   async recalcularTotaisProposta(propostaId: string): Promise<Proposta> {
     const proposta = await this.getById(propostaId)
     const itens = await this.getItems(propostaId)

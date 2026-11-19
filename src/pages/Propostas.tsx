@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { FileText, Plus, Trash2, Eye, FileSignature, Search, Kanban } from 'lucide-react'
+import { FileText, Plus, Trash2, FileSignature, Search, Kanban, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 
 const statusLabels: Record<string, string> = {
@@ -315,9 +315,14 @@ export default function PropostasPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <Link to={`/propostas/${p.id}`}>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Abrir">
-                          <Eye className="h-3.5 w-3.5" />
+                      <Link to={`/propostas/${p.id}`} title="Abrir / editar itens">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Abrir / editar itens"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       </Link>
                       <Button
