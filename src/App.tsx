@@ -13,6 +13,7 @@ import BomEditorPage from '@/pages/BomEditor'
 import PrecificacaoPage from '@/pages/Precificacao'
 import PropostasPage from '@/pages/Propostas'
 import PropostaDetalhePage from '@/pages/PropostaDetalhe'
+import PropostaClientePage from '@/pages/PropostaCliente'
 import ComprasPage from '@/pages/Compras'
 import ListaComprasPage from '@/pages/ListaCompras'
 import LoginPage from '@/pages/Login'
@@ -43,6 +44,9 @@ export default function App() {
 
           {/* Todas as páginas internas exigem autenticação e status aprovado */}
           <Route element={<ProtectedRoute />}>
+            {/* Documento para o cliente — FORA do Layout (visualização limpa, sem UI do sistema) */}
+            <Route path="/propostas/:id/cliente" element={<PropostaClientePage />} />
+
             <Route element={<Layout />}>
               {/* Rotas comerciais acessíveis para vendedor, usuário e admin */}
               <Route path="/catalogo" element={<CatalogoPage />} />

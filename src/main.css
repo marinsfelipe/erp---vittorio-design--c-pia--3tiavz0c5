@@ -288,3 +288,129 @@
     animation: spotlight 2s ease forwards;
   }
 }
+
+/* ============================================================
+   Documento da PROPOSTA PARA O CLIENTE (/propostas/:id/cliente)
+   Visualização limpa, fora do Layout; impressão A4.
+   ============================================================ */
+@layer components {
+  .doc-folha {
+    @apply mx-auto w-[210mm] max-w-full bg-white p-[12mm] text-[11pt] leading-relaxed text-neutral-900 shadow-md;
+  }
+
+  .doc-cabecalho {
+    @apply mb-6 flex items-start justify-between gap-6 border-b-2 border-neutral-800 pb-4;
+  }
+
+  .doc-emissor {
+    @apply flex items-start gap-3;
+  }
+
+  .doc-emissor-dados {
+    @apply text-[9pt] leading-snug text-neutral-600;
+  }
+
+  .doc-forte {
+    @apply font-semibold text-neutral-900;
+  }
+
+  .doc-titulo {
+    @apply text-right;
+  }
+
+  .doc-titulo h1 {
+    @apply text-[15pt] font-bold uppercase tracking-wide text-neutral-900;
+  }
+
+  .doc-numero {
+    @apply mt-1 text-[11pt] font-semibold text-neutral-800;
+  }
+
+  .doc-data {
+    @apply text-[9pt] text-neutral-600;
+  }
+
+  .doc-bloco {
+    @apply mb-5 text-[10pt];
+  }
+
+  .doc-bloco h2 {
+    @apply mb-1 border-b border-neutral-300 pb-0.5 text-[10pt] font-bold uppercase tracking-wide text-neutral-700;
+  }
+
+  .doc-tabela {
+    @apply mb-5 w-full border-collapse text-[9.5pt];
+  }
+
+  .doc-tabela th {
+    @apply border border-neutral-400 bg-neutral-100 px-2 py-1.5 text-left font-bold uppercase text-neutral-800;
+  }
+
+  .doc-tabela td {
+    @apply border border-neutral-300 px-2 py-1.5 align-top;
+  }
+
+  .doc-col-num {
+    @apply text-right;
+  }
+
+  .doc-col-cod {
+    @apply w-[14%];
+  }
+
+  .doc-mono {
+    @apply font-mono text-[9pt];
+  }
+
+  .doc-vazio {
+    @apply py-4 text-center text-neutral-500;
+  }
+
+  .doc-totais {
+    @apply mb-5 ml-auto w-[70mm] text-[10pt];
+  }
+
+  .doc-linha-total {
+    @apply flex items-center justify-between border-b border-neutral-200 py-1;
+  }
+
+  .doc-total-final {
+    @apply mt-1 border-y-2 border-neutral-800 text-[11.5pt] font-bold;
+  }
+
+  .doc-extenso {
+    @apply mt-1 text-right text-[8.5pt] italic text-neutral-600;
+  }
+
+  .doc-rodape {
+    @apply mt-10;
+  }
+
+  .doc-nota {
+    @apply text-center text-[8.5pt] text-neutral-500;
+  }
+
+  .doc-assinaturas {
+    @apply mt-14 flex justify-between gap-10;
+  }
+
+  .doc-assinatura {
+    @apply w-[45%] text-center text-[9pt] text-neutral-700;
+  }
+
+  .doc-linha-assinatura {
+    @apply mb-1 border-t border-neutral-500;
+  }
+}
+
+/* Impressão: só o documento, A4, sem sombras/cores de fundo */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  .doc-folha {
+    @apply w-full max-w-none p-0 shadow-none;
+  }
+}

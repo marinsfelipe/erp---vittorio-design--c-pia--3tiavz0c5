@@ -675,6 +675,12 @@ export default function PropostaDetalhePage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Link to={`/propostas/${proposta.id}/cliente`}>
+            <Button variant="outline" size="sm" className="gap-2 text-xs">
+              <FileText className="h-3.5 w-3.5 text-primary" />
+              Proposta para Cliente
+            </Button>
+          </Link>
           <Link to="/pipeline">
             <Button variant="outline" size="sm" className="gap-2 text-xs">
               <Kanban className="h-3.5 w-3.5 text-primary" />
