@@ -2,16 +2,45 @@ export type TipoItemBom =
   | 'produto_final'
   | 'produto_semi_acabado'
   | 'componente_interno'
+  | 'kit_montagem_interna'
   | 'componente_terceiros'
 
 export const TIPOS_ITEM_BOM: { value: TipoItemBom; label: string }[] = [
   { value: 'produto_final', label: 'Produto Final' },
   { value: 'produto_semi_acabado', label: 'Produto Semi-Acabado' },
   { value: 'componente_interno', label: 'Componente Interno' },
+  { value: 'kit_montagem_interna', label: 'KIT-montagem interna' },
   { value: 'componente_terceiros', label: 'Componente de Terceiros' },
 ]
 
 export const labelTipoItem = (t?: string) => TIPOS_ITEM_BOM.find((x) => x.value === t)?.label ?? '—'
+
+/** Categoria nova que também determina posse de BOM. */
+export const CATEGORIA_KIT = 'KIT'
+
+/**
+ * Regra ÚNICA de determinação de posse de BOM (categoria e tipo determinam):
+ * - Possuem BOM: Produto Final, Produto Semi-Acabado, Componente Interno,
+ *   KIT-montagem interna, e qualquer item sem tipo com categoria "KIT".
+ * - NÃO possuem BOM: Componente de Terceiros (item comprado, folha).
+ */
+export function podePossuirBOM(tipo?: string, categoria?: string): boolean {
+  if (tipo === 'componente_terceiros') return false
+  if (
+    tipo === 'produto_final' ||
+    tipo === 'produto_semi_acabado' ||
+    tipo === 'componente_interno' ||
+    tipo === 'kit_montagem_interna'
+  ) {
+    return true
+  }
+  // Sem tipo conhecido (cadastro legado): só a categoria KIT habilita BOM
+  if (!tipo) return (categoria || '').trim().toUpperCase() === CATEGORIA_KIT
+  return false
+}
+
+/** Alias curto usado nas telas (mesma regra). */
+export const canPossuiBOM = podePossuirBOM
 
 /** Aceita filhos: qualquer tipo exceto componente de terceiros (folha). */
 export const aceitaFilhos = (tipo?: string) => tipo !== 'componente_terceiros'

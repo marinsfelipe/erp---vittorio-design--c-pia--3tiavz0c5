@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-23T18:48:30.624Z",
+  "generatedAt": "2026-11-23T19:20:00.010Z",
   "collections": [
     {
       "name": "users",
@@ -134,6 +134,7 @@
             "produto_final",
             "produto_semi_acabado",
             "componente_interno",
+            "kit_montagem_interna",
             "componente_terceiros"
           ]
         }
@@ -473,6 +474,13 @@
           "autodateTriggers": ["onCreate", "onUpdate"]
         },
         {
+          "name": "parent_id",
+          "type": "relation",
+          "required": false,
+          "system": false,
+          "collectionRef": "bom_items"
+        },
+        {
           "name": "item_tipo",
           "type": "select",
           "required": false,
@@ -481,15 +489,9 @@
             "produto_final",
             "produto_semi_acabado",
             "componente_interno",
+            "kit_montagem_interna",
             "componente_terceiros"
           ]
-        },
-        {
-          "name": "parent_id",
-          "type": "relation",
-          "required": false,
-          "system": false,
-          "collectionRef": "bom_items"
         }
       ],
       "indexes": [
