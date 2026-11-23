@@ -1,5 +1,5 @@
 import type { Bom, BomItem, TipoItemBom } from '@/types/erp'
-import { aceitaFilhos } from '@/types/erp'
+import { aceitaFilhos, CATEGORIA_KIT } from '@/types/erp'
 
 export interface TreeNode {
   item: BomItem
@@ -60,29 +60,36 @@ export interface ContextoCustoBoms {
   itensPorSku: Map<string, BomItem[]>
   /** Memo do custo consolidado por SKU (evita recomputar referências repetidas). */
   custoPorSku: Map<string, number>
+  /** SKU do BOM (caixa alta) -> o registro do BOM (dados da raiz: nome, categoria). */
+  bomPorSku: Map<string, Bom>
 }
 
-/** Monta o contexto a partir das duas listagens únicas (BOMs + itens agrupados). */
+/** Monta o contexto a partir das duas listagens únicas (BOMs + itens agrupados).
+ */
 export function montarContextoCusto(
   itensGrouped: Record<string, BomItem[]>,
   boms: Bom[],
 ): ContextoCustoBoms {
   const itensPorSku = new Map<string, BomItem[]>()
+  const bomPorSku = new Map<string, Bom>()
   for (const bom of boms) {
-    itensPorSku.set((bom.sku || '').trim().toUpperCase(), itensGrouped[bom.id] || [])
+    const sku = (bom.sku || '').trim().toUpperCase()
+    itensPorSku.set(sku, itensGrouped[bom.id] || [])
+    bomPorSku.set(sku, bom)
   }
-  return { itensPorSku, custoPorSku: new Map() }
+  return { itensPorSku, custoPorSku: new Map(), bomPorSku }
 }
 
-function raizVirtualDe(sku: string, itens: BomItem[]): BomItem {
+function raizVirtualDe(sku: string, itens: BomItem[], ctx?: ContextoCustoBoms): BomItem {
+  const bom = ctx?.bomPorSku.get(sku)
   return {
     id: `virtual-sub-${sku}`,
-    bom_id: '',
+    bom_id: bom?.id ?? '',
     nivel: 0,
     ordem: 0,
     codigo: sku,
-    descricao: sku,
-    unidade: 'UN',
+    descricao: bom?.nome || sku,
+    unidade: bom?.unidade || 'UN',
     quantidade: 1,
     custo_unitario: 0,
     item_tipo: 'produto_final',
@@ -105,7 +112,7 @@ function custoConsolidadoSubBom(
   let total = 0
   const itens = ctx.itensPorSku.get(sku) || []
   if (itens.length > 0) {
-    const raiz = buildTree(itens, raizVirtualDe(sku, itens))
+    const raiz = buildTree(itens, raizVirtualDe(sku, itens, ctx))
     total = raiz.children.reduce(
       (acc, f) => acc + (Number(f.item.quantidade) || 0) * calcularCustoUnitario(f, ctx, visitados),
       0,
@@ -213,6 +220,21 @@ export function montarArvore(
   return { root, nodes: flattenTree(root) }
 }
 
+/**
+ * Tipo de raiz de um BOM existente, usado ao vinculá-lo como sub-BOM:
+ * tipo do item raiz ancorado pelo SKU; sem raiz gravada, infere pela
+ * categoria (KIT → kit_montagem_interna; senão produto_semi_acabado).
+ */
+export function inferirTipoRaizBom(bom: Bom, items: BomItem[]): TipoItemBom {
+  const sku = (bom.sku || '').trim().toUpperCase()
+  const raiz = items.find((i) => !i.parent_id && (i.codigo || '').trim().toUpperCase() === sku)
+  const tipo = raiz?.item_tipo
+  if (tipo && tipo !== 'componente_terceiros') return tipo
+  return (bom.categoria || '').trim().toUpperCase() === CATEGORIA_KIT
+    ? 'kit_montagem_interna'
+    : 'produto_semi_acabado'
+}
+
 export function podeReceberFilho(node: TreeNode): boolean {
   return aceitaFilhos(node.item.item_tipo)
 }
@@ -258,24 +280,29 @@ export function explodirItensCompra(root: TreeNode, ctx?: ContextoCustoBoms): Bo
       out.push({ ...it, quantidade: (Number(it.quantidade) || 0) * mult })
       return
     }
+    // Antes de descer nos filhos locais, um nó fabricado cujo código é o SKU
+    // de outro BOM (e que NÃO é a raiz da explosão) tem sua lista resolvida
+    // pelo sub-BOM — mesmo que tenha filhos locais (filhos gravados localmente
+    // nunca substituem a lista oficial do sub-BOM; evita custo duplo).
+    const sku = (it.codigo || '').trim().toUpperCase()
+    const ehRaizExplosao = node === root
+    if (ctx && !ehRaizExplosao && sku && ctx.itensPorSku.has(sku) && !visitados.has(sku)) {
+      visitados.add(sku)
+      const itens = ctx.itensPorSku.get(sku) || []
+      const sub = buildTree(itens, raizVirtualDe(sku, itens, ctx))
+      for (const f of sub.children) {
+        walk(f, mult * (Number(it.quantidade) || 1))
+      }
+      visitados.delete(sku)
+      return
+    }
     if (node.children.length > 0) {
       for (const f of node.children) {
         walk(f, mult * (Number(it.quantidade) || 1))
       }
       return
     }
-    // Folha fabricada sem filhos locais: explosa o sub-BOM referenciado
-    const sku = (it.codigo || '').trim().toUpperCase()
-    if (ctx && sku && ctx.itensPorSku.has(sku) && !visitados.has(sku)) {
-      visitados.add(sku)
-      const itens = ctx.itensPorSku.get(sku) || []
-      const sub = buildTree(itens, raizVirtualDe(sku, itens))
-      for (const f of sub.children) {
-        walk(f, mult * (Number(it.quantidade) || 1))
-      }
-      visitados.delete(sku)
-    }
-    // Folha fabricada sem BOM próprio e sem filhos: não entra na lista de compras
+    // Folha fabricada sem filhos locais e sem sub-BOM: não entra na lista de compras
   }
   walk(root, 1)
   return out
