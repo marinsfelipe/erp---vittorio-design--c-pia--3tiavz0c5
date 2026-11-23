@@ -45,38 +45,151 @@ export function flattenTree(node: TreeNode): TreeNode[] {
   return out
 }
 
+// ---------------------------------------------------------------------------
+// Hierarquia aninhada de BOMs — custo recursivo entre BOMs
+// ---------------------------------------------------------------------------
+
+/**
+ * Contexto de custo com TODOS os BOMs e seus itens carregados de uma vez
+ * (padrão getAllItemsGrouped — UMA listagem, nunca 1 request por BOM).
+ * Um item fabricado cujo `codigo` é o SKU de outro BOM resolve seu custo
+ * pela explosão daquele sub-BOM.
+ */
+export interface ContextoCustoBoms {
+  /** SKU do BOM (caixa alta) -> itens diretos daquele BOM. */
+  itensPorSku: Map<string, BomItem[]>
+  /** Memo do custo consolidado por SKU (evita recomputar referências repetidas). */
+  custoPorSku: Map<string, number>
+}
+
+/** Monta o contexto a partir das duas listagens únicas (BOMs + itens agrupados). */
+export function montarContextoCusto(
+  itensGrouped: Record<string, BomItem[]>,
+  boms: Bom[],
+): ContextoCustoBoms {
+  const itensPorSku = new Map<string, BomItem[]>()
+  for (const bom of boms) {
+    itensPorSku.set((bom.sku || '').trim().toUpperCase(), itensGrouped[bom.id] || [])
+  }
+  return { itensPorSku, custoPorSku: new Map() }
+}
+
+function raizVirtualDe(sku: string, itens: BomItem[]): BomItem {
+  return {
+    id: `virtual-sub-${sku}`,
+    bom_id: '',
+    nivel: 0,
+    ordem: 0,
+    codigo: sku,
+    descricao: sku,
+    unidade: 'UN',
+    quantidade: 1,
+    custo_unitario: 0,
+    item_tipo: 'produto_final',
+  }
+}
+
+/**
+ * Custo consolidado do sub-BOM `sku`, com memo e proteção de ciclo: um SKU
+ * já presente na cadeia de ancestrais (`visitados`) NÃO é revisitado — a
+ * referência circular contribui com 0 em vez de travar a página.
+ */
+function custoConsolidadoSubBom(
+  sku: string,
+  ctx: ContextoCustoBoms,
+  visitados: Set<string>,
+): number {
+  const memo = ctx.custoPorSku.get(sku)
+  if (memo !== undefined) return memo
+  visitados.add(sku)
+  let total = 0
+  const itens = ctx.itensPorSku.get(sku) || []
+  if (itens.length > 0) {
+    const raiz = buildTree(itens, raizVirtualDe(sku, itens))
+    total = raiz.children.reduce(
+      (acc, f) => acc + (Number(f.item.quantidade) || 0) * calcularCustoUnitario(f, ctx, visitados),
+      0,
+    )
+  }
+  visitados.delete(sku)
+  ctx.custoPorSku.set(sku, total)
+  return total
+}
+
 /**
  * Custo unitário por rolagem recursiva:
  * - componente de terceiros (folha): custo digitado
- * - fabricado (semi-acabado, interno): soma dos (quantidade × custo unitário) dos filhos
+ * - fabricado (semi-acabado, interno, KIT): se o código é raiz de outro BOM,
+ *   o custo desce na lista do sub-BOM (recursão entre BOMs); senão, soma dos
+ *   (quantidade × custo unitário) dos filhos locais.
+ * `ehRaiz` evita o BOM resolver a si mesmo (a raiz de um BOM nunca consulta
+ * o próprio SKU como sub-BOM).
  */
-export function calcularCustoUnitario(node: TreeNode): number {
-  if (node.item.item_tipo === 'componente_terceiros') {
+export function calcularCustoUnitario(
+  node: TreeNode,
+  ctx?: ContextoCustoBoms,
+  visitados?: Set<string>,
+  ehRaiz = false,
+): number {
+  const tipo = node.item.item_tipo
+  if (tipo === 'componente_terceiros') {
     return Number(node.item.custo_unitario) || 0
   }
+  if (ctx && !ehRaiz) {
+    const sku = (node.item.codigo || '').trim().toUpperCase()
+    if (sku && ctx.itensPorSku.has(sku) && !(visitados && visitados.has(sku))) {
+      return custoConsolidadoSubBom(sku, ctx, visitados || new Set())
+    }
+  }
   return node.children.reduce(
-    (acc, f) => acc + (Number(f.item.quantidade) || 0) * calcularCustoUnitario(f),
+    (acc, f) => acc + (Number(f.item.quantidade) || 0) * calcularCustoUnitario(f, ctx, visitados),
     0,
   )
 }
 
 /** Custo total de um nó = quantidade × custo unitário (calculado se fabricado). */
-export function calcularCustoTotal(node: TreeNode): number {
-  return (Number(node.item.quantidade) || 0) * calcularCustoUnitario(node)
+export function calcularCustoTotal(
+  node: TreeNode,
+  ctx?: ContextoCustoBoms,
+  ehRaiz = false,
+): number {
+  return (Number(node.item.quantidade) || 0) * calcularCustoUnitario(node, ctx, undefined, ehRaiz)
 }
 
-/** Custo consolidado do produto final = custo total da raiz da árvore. */
-export function calcularCustoConsolidado(root: TreeNode): number {
-  return calcularCustoTotal(root)
+/**
+ * Custo consolidado do produto = custo total da raiz da árvore. Quando o
+ * contexto de BOMs é informado, o custo desce recursivamente nos sub-BOMs
+ * (itens que apontam para outra BOM) com proteção contra ciclo.
+ */
+export function calcularCustoConsolidado(root: TreeNode, ctx?: ContextoCustoBoms): number {
+  return calcularCustoTotal(root, ctx, true)
 }
 
 /**
  * Monta a árvore a partir de dados já carregados (sem chamadas de rede).
- * Se o BOM ainda não tem raiz produto_final (legado), usa raiz virtual
- * derivada do próprio BOM para que nada se perda visualmente.
+ * Detecção da raiz, nesta ordem:
+ * 1. item com `item_tipo === tipoRaiz` (padrão produto_final);
+ * 2. âncora pelo código: item de topo (sem parent_id) cujo código é o
+ *    SKU do próprio BOM — é assim que BOMs de semi-acabado/componente
+ *    interno/KIT guardam sua raiz (item gravado na criação com o tipo
+ *    escolhido), sem precisar de campo novo em `boms`;
+ * 3. raiz virtual derivada do próprio BOM (legado) para que nada se perda.
  */
-export function montarArvore(bom: Bom | null, items: BomItem[]) {
-  let rootItem = items.find((i) => i.item_tipo === 'produto_final')
+export function montarArvore(
+  bom: Bom | null,
+  items: BomItem[],
+  tipoRaiz: TipoItemBom = 'produto_final',
+) {
+  let rootItem = items.find((i) => i.item_tipo === tipoRaiz)
+  if (!rootItem && tipoRaiz !== 'produto_final') {
+    rootItem = items.find((i) => i.item_tipo === 'produto_final')
+  }
+  if (!rootItem) {
+    const sku = (bom?.sku || '').trim().toUpperCase()
+    rootItem = sku
+      ? items.find((i) => !i.parent_id && (i.codigo || '').trim().toUpperCase() === sku)
+      : undefined
+  }
   let virtual = false
   if (!rootItem) {
     rootItem = {
@@ -124,4 +237,46 @@ export function criariaCicloPorCodigo(parent: TreeNode, codigo: string): boolean
     cur = cur.parent
   }
   return false
+}
+
+/**
+ * Explosão para LISTA DE COMPRAS: achata a árvore coletando apenas itens
+ * comprados (componente_terceiros), com a quantidade acumulada de toda a
+ * cadeia de pais. Quando uma folha fabricada referencia outro BOM (sub-BOM
+ * sem filhos locais), a explosão desce na lista do sub-BOM (recursão, com
+ * proteção de ciclo via `visitados`).
+ */
+export function explodirItensCompra(root: TreeNode, ctx?: ContextoCustoBoms): BomItem[] {
+  const out: BomItem[] = []
+  const visitados = new Set<string>()
+  const skuRaiz = (root.item.codigo || '').trim().toUpperCase()
+  if (skuRaiz) visitados.add(skuRaiz)
+
+  const walk = (node: TreeNode, mult: number) => {
+    const it = node.item
+    if (it.item_tipo === 'componente_terceiros') {
+      out.push({ ...it, quantidade: (Number(it.quantidade) || 0) * mult })
+      return
+    }
+    if (node.children.length > 0) {
+      for (const f of node.children) {
+        walk(f, mult * (Number(it.quantidade) || 1))
+      }
+      return
+    }
+    // Folha fabricada sem filhos locais: explosa o sub-BOM referenciado
+    const sku = (it.codigo || '').trim().toUpperCase()
+    if (ctx && sku && ctx.itensPorSku.has(sku) && !visitados.has(sku)) {
+      visitados.add(sku)
+      const itens = ctx.itensPorSku.get(sku) || []
+      const sub = buildTree(itens, raizVirtualDe(sku, itens))
+      for (const f of sub.children) {
+        walk(f, mult * (Number(it.quantidade) || 1))
+      }
+      visitados.delete(sku)
+    }
+    // Folha fabricada sem BOM próprio e sem filhos: não entra na lista de compras
+  }
+  walk(root, 1)
+  return out
 }
