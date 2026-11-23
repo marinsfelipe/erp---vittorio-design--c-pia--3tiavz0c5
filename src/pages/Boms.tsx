@@ -34,6 +34,7 @@ import { Link } from 'react-router-dom'
 import { Upload } from 'lucide-react'
 import ImportarBomDialog from '@/components/bom/ImportarBomDialog'
 import { CategoriaProdutoSelector } from '@/components/bom/CategoriaProdutoSelector'
+import { categoriasProdutoService } from '@/services/categoriasProduto'
 import {
   Select,
   SelectContent,
@@ -42,6 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Search, SearchX } from 'lucide-react'
+import { useEdicaoLote } from '@/hooks/useEdicaoLote'
 
 interface BomWithStats extends Bom {
   itemCount: number
@@ -65,6 +67,50 @@ export default function BomsPage() {
     overhead_percentual: '14.5',
     margem_percentual: '28.0',
   })
+
+  // Edição em lote (exclusivo do admin): categoria e NCM
+  const [categoriasProduto, setCategoriasProduto] = useState<string[]>([])
+  const [dialogoNcm, setDialogoNcm] = useState('')
+  const lote = useEdicaoLote({
+    rotuloItem: 'BOM',
+    campos: [
+      {
+        key: 'categoria',
+        label: 'Categoria do Equipamento',
+        placeholderDinamico: '— não alterar —',
+        opcoesDinamicas: categoriasProduto,
+      },
+      {
+        key: 'ncm',
+        label: 'NCM (8 dígitos)',
+        placeholder: '— não alterar —',
+        numerico8: true,
+      },
+    ],
+    aplicar: async (ids, valores) => {
+      // NCM em lote segue a MESMA regra da edição individual:
+      // origem 'manual' + status pronto_nf => nunca sobrescrito pela classificação automática
+      const payload: Record<string, unknown> = {}
+      if (valores.categoria) payload.categoria = valores.categoria
+      if (valores.ncm) {
+        payload.ncm = valores.ncm
+        payload.ncm_origem = 'manual'
+        payload.ncm_status = 'pronto_nf'
+        payload.ncm_classificado_em = new Date().toISOString()
+      }
+      const res = await bomsService.updateLote(ids, payload)
+      return res
+    },
+    posAplicar: () => loadData(),
+  })
+
+  // Seleção no diálogo: campo NCM precisa ser digitado fora do Select dinâmico
+  useEffect(() => {
+    categoriasProdutoService
+      .getAll()
+      .then((cats) => setCategoriasProduto(cats.map((c) => c.nome)))
+      .catch(() => {})
+  }, [])
 
   const loadData = async () => {
     setIsLoading(true)
@@ -121,6 +167,12 @@ export default function BomsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroCategoria, setFiltroCategoria] = useState('todas')
   const [filtroTipo, setFiltroTipo] = useState('todos')
+
+  // Deselecionar tudo ao trocar busca ou filtro
+  useEffect(() => {
+    lote.limparSelecao()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filtroCategoria, filtroTipo])
 
   const categoriasBoms = Array.from(
     new Set(boms.map((b) => b.categoria || '').filter(Boolean)),
@@ -273,6 +325,9 @@ export default function BomsPage() {
         </span>
       </div>
 
+      {/* Barra de edição em lote (só aparece com itens selecionados — admin) */}
+      {lote.isAdmin && lote.barraSelecao}
+
       {/* Grid de Cards de BOMs */}
       {isLoading ? (
         <div className="text-center py-16 text-muted-foreground">
@@ -323,6 +378,7 @@ export default function BomsPage() {
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    {lote.isAdmin && lote.colunaCheckbox(bom.id)}
                     <Badge
                       variant="outline"
                       className="font-mono text-xs font-bold text-primary bg-primary/5"
@@ -503,6 +559,9 @@ export default function BomsPage() {
 
       {/* Modal Importar BOMs */}
       <ImportarBomDialog open={isImportOpen} onOpenChange={setIsImportOpen} onImported={loadData} />
+
+      {lote.dialogo}
+      {lote.confirmDialog}
     </div>
   )
 }

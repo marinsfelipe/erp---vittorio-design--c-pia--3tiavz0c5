@@ -54,6 +54,31 @@ export const bomsService = {
     return await pb.collection('boms').delete(id)
   },
 
+  /**
+   * Edição em lote de BOMs: aplica os MESMOS valores a vários registros, um
+   * update por vez EM SÉRIE (sem Promise.all — evita rate limit 429).
+   * Aceita só os campos passados; retorna contagem de acertos/falhas.
+   */
+  async updateLote(
+    ids: string[],
+    valores: Partial<
+      Pick<Bom, 'categoria' | 'ncm' | 'ncm_origem' | 'ncm_status' | 'ncm_classificado_em'>
+    >,
+  ): Promise<{ atualizados: number; erros: number }> {
+    let atualizados = 0
+    let erros = 0
+    for (const id of ids) {
+      try {
+        await this.update(id, valores)
+        atualizados++
+      } catch (err) {
+        console.error('Erro ao atualizar BOM em lote:', id, err)
+        erros++
+      }
+    }
+    return { atualizados, erros }
+  },
+
   // Itens do BOM
   async getItems(bomId: string): Promise<BomItem[]> {
     return await pb.collection('bom_items').getFullList<BomItem>({

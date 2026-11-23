@@ -34,6 +34,32 @@ import {
 import { Plus, Search, Edit2, Trash2, FileSpreadsheet, RefreshCw, Cpu, Layers } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
+import { useEdicaoLote } from '@/hooks/useEdicaoLote'
+import type { CampoLote } from '@/hooks/useEdicaoLote'
+import { Checkbox } from '@/components/ui/checkbox'
+
+const CAMPOS_LOTE_COMPONENTES: CampoLote[] = [
+  { key: 'tipo', label: 'Tipo', opcoes: TIPOS_ITEM_BOM },
+  {
+    key: 'unidade',
+    label: 'Unidade',
+    opcoes: [
+      { value: 'UN', label: 'UN - Unidade' },
+      { value: 'KG', label: 'KG - Quilograma' },
+      { value: 'M', label: 'M - Metro Linear' },
+      { value: 'M2', label: 'M² - Metro Quadrado' },
+      { value: 'PC', label: 'PC - Peça' },
+      { value: 'CJ', label: 'CJ - Conjunto' },
+      { value: 'L', label: 'L - Litro' },
+    ],
+  },
+  {
+    key: 'categoria',
+    label: 'Categoria',
+    placeholder: 'Ex: Refrigeração, Vidros...',
+  },
+  { key: 'fornecedor', label: 'Fornecedor Principal', placeholder: 'Ex: Embraco, Full Gauge...' },
+]
 
 export default function ComponentesPage() {
   const [todosComponentes, setTodosComponentes] = useState<Componente[]>([])
@@ -74,6 +100,36 @@ export default function ComponentesPage() {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Edição em lote (exclusivo do admin)
+  const lote = useEdicaoLote({
+    rotuloItem: 'componente',
+    campos: CAMPOS_LOTE_COMPONENTES,
+    aplicar: async (ids, valores) => {
+      let atualizados = 0
+      let erros = 0
+      // Updates EM SÉRIE — rajada Promise.all estoura o rate limit (429)
+      for (const id of ids) {
+        try {
+          await componentesService.update(id, valores)
+          atualizados++
+        } catch (err) {
+          console.error('Erro ao atualizar componente em lote:', id, err)
+          erros++
+        }
+      }
+      return { atualizados, erros }
+    },
+    posAplicar: () => {
+      loadData()
+    },
+  })
+
+  // Deselecionar tudo ao trocar busca ou filtro
+  useEffect(() => {
+    lote.limparSelecao()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedCategoria, selectedUnidade])
 
   const normalizar = (s: string) =>
     s
@@ -266,11 +322,19 @@ export default function ComponentesPage() {
         </span>
       </div>
 
+      {/* Barra de edição em lote (só aparece com itens selecionados — admin) */}
+      {lote.isAdmin && lote.barraSelecao}
+
       {/* Tabela de Componentes */}
       <div className="bg-card border border-border rounded-xl overflow-hidden shadow-sm">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              {lote.isAdmin && (
+                <TableHead className="w-10 font-semibold">
+                  {lote.cabecalhoSelecao(componentes.map((c) => c.id))}
+                </TableHead>
+              )}
               <TableHead className="w-32 font-semibold">Código</TableHead>
               <TableHead className="font-semibold">Descrição</TableHead>
               <TableHead className="w-44 font-semibold">Categoria</TableHead>
@@ -284,14 +348,17 @@ export default function ComponentesPage() {
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                <TableCell
+                  colSpan={lote.isAdmin ? 9 : 8}
+                  className="text-center py-12 text-muted-foreground"
+                >
                   Carregando componentes cadastrados...
                 </TableCell>
               </TableRow>
             ) : componentes.length === 0 ? (
               todosComponentes.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={lote.isAdmin ? 9 : 8} className="text-center py-12">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Layers className="h-10 w-10 text-muted-foreground/50" />
                       <p className="font-medium text-foreground">Nenhum componente encontrado</p>
@@ -311,7 +378,7 @@ export default function ComponentesPage() {
                 </TableRow>
               ) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12">
+                  <TableCell colSpan={lote.isAdmin ? 9 : 8} className="text-center py-12">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <SearchX className="h-10 w-10 text-muted-foreground/50" />
                       <p className="font-medium text-foreground">Nenhum registro encontrado</p>
@@ -337,6 +404,9 @@ export default function ComponentesPage() {
             ) : (
               componentes.map((comp) => (
                 <TableRow key={comp.id} className="hover:bg-muted/40 transition-colors">
+                  {lote.isAdmin && (
+                    <TableCell className="w-10">{lote.colunaCheckbox(comp.id)}</TableCell>
+                  )}
                   <TableCell className="font-mono font-semibold text-primary">
                     {comp.codigo}
                   </TableCell>
@@ -518,6 +588,9 @@ export default function ComponentesPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {lote.dialogo}
+      {lote.confirmDialog}
     </div>
   )
 }
