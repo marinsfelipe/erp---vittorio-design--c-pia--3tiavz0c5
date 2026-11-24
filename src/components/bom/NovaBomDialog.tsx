@@ -31,6 +31,14 @@ export interface NovaBomForm {
   margem_percentual: number
 }
 
+interface ItemComponente {
+  id?: string
+  codigo: string
+  descricao: string
+  categoria: string
+  tipo?: string
+}
+
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -39,6 +47,8 @@ interface Props {
   onCreated: (bom: Bom) => void
   defaultOverhead: number
   defaultMargem: number
+  /** Item vindo de fora (botão "Criar BOM" da lista /boms) — já pré-selecionado. */
+  itemPreSelecionado?: ItemComponente | null
 }
 
 /**
@@ -55,10 +65,9 @@ export function NovaBomDialog({
   onCreated,
   defaultOverhead,
   defaultMargem,
+  itemPreSelecionado,
 }: Props) {
-  const [componentes, setComponentes] = useState<
-    Array<{ id: string; codigo: string; descricao: string; categoria: string; tipo?: string }>
-  >([])
+  const [componentes, setComponentes] = useState<ItemComponente[]>([])
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<{
     codigo: string
@@ -89,6 +98,23 @@ export function NovaBomDialog({
       ativo = false
     }
   }, [open])
+
+  // Item pré-selecionado (botão "Criar BOM" da lista /boms): aplica quando o
+  // diálogo abre, sem que o usuário precise buscar o item de novo.
+  useEffect(() => {
+    if (!open || !itemPreSelecionado) return
+    const sku = (itemPreSelecionado.codigo || '').trim().toUpperCase()
+    if (!sku) return
+    setSelected({
+      codigo: sku,
+      descricao: itemPreSelecionado.descricao,
+      categoria: itemPreSelecionado.categoria,
+      tipo: itemPreSelecionado.tipo,
+    })
+    if (itemPreSelecionado.categoria) setCategoria(itemPreSelecionado.categoria)
+    if (itemPreSelecionado.descricao) setNome(itemPreSelecionado.descricao)
+    if (itemPreSelecionado.tipo) setTipoRaiz(itemPreSelecionado.tipo as TipoItemBom)
+  }, [open, itemPreSelecionado])
 
   // Skus que já são raiz de BOM — bloqueia criação duplicada
   const skusRaiz = useMemo(

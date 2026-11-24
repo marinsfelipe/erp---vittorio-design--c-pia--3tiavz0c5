@@ -1,15 +1,17 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { bomsService } from '@/services/boms'
+import { componentesService } from '@/services/componentes'
 import { calcularMarkupDivisor, montarPercentuais } from '@/utils/pricing'
 import { parametrosService } from '@/services/parametros'
-import type { Bom, BomItem } from '@/types/erp'
+import type { Bom, BomItem, Componente } from '@/types/erp'
+import { podePossuirBOM } from '@/types/erp'
 import { montarArvore, calcularCustoConsolidado } from '@/utils/bomTree'
 import { NovaBomDialog } from '@/components/bom/NovaBomDialog'
+import { CardBomExistente, CardItemSemBom } from '@/components/bom/CardsBoms'
 import { formatBRL, formatPercent } from '@/utils/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Plus,
   ArrowRight,
@@ -45,11 +47,14 @@ interface BomWithStats extends Bom {
 
 export default function BomsPage() {
   const [boms, setBoms] = useState<BomWithStats[]>([])
+  const [componentes, setComponentes] = useState<Componente[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
   const [defaultParams, setDefaultParams] = useState({ overhead: 14.5, margem: 28.0 })
+  // Item pré-selecionado no diálogo (aberto pelo botão "Criar BOM" do card)
+  const [itemPreSelecionado, setItemPreSelecionado] = useState<Componente | null>(null)
 
   // (O estado do formulário de criação mora no NovaBomDialog.)
 
@@ -110,7 +115,10 @@ export default function BomsPage() {
 
       // Carregar todos os itens em UMA listagem (evita rajada de 1 request por
       // BOM, que estoura o rate limit do backend — 429 — e derruba a página)
-      const itemsMap = await bomsService.getAllItemsGrouped()
+      const [itemsMap, allComponentes] = await Promise.all([
+        bomsService.getAllItemsGrouped(),
+        componentesService.getAll(),
+      ])
 
       const bomsWithStats: BomWithStats[] = allBoms.map((bom) => {
         const items: BomItem[] = itemsMap[bom.id] || []
@@ -135,6 +143,7 @@ export default function BomsPage() {
       })
 
       setBoms(bomsWithStats)
+      setComponentes(allComponentes)
     } catch (err: any) {
       console.error(err)
       toast.error('Erro ao carregar lista de BOMs')
@@ -159,29 +168,89 @@ export default function BomsPage() {
   }, [searchTerm, filtroCategoria, filtroTipo])
 
   const categoriasBoms = Array.from(
-    new Set(boms.map((b) => b.categoria || '').filter(Boolean)),
+    new Set(componentes.map((c) => c.categoria || '').filter(Boolean)),
   ).sort((a, b) => a.localeCompare(b, 'pt-BR'))
 
-  const bomsFiltrados = boms.filter((b) => {
-    if (filtroCategoria !== 'todas' && (b.categoria || '') !== filtroCategoria) return false
-    if (filtroTipo !== 'todos' && (b.ncm_status || '') !== filtroTipo) return false
-    // "tipo" do BOM: status fiscal (pronto para NF / pendente fiscal), como na Tabela de Preços
+  // Lista AMPLIADA: todo item do catálogo que PODE possuir BOM (produto final,
+  // semi-acabado, componente interno, KIT). Terceiros ficam só em /componentes.
+  // Cada linha vira { tipo, comp?, bom? }: comp = card "sem BOM" (com botão
+  // Criar BOM), bom = card atual (métricas + editor + precificação).
+  const linhas = useMemo(() => {
+    const bomPorSku = new Map(boms.map((b) => [(b.sku || '').trim().toUpperCase(), b] as const))
+    const skusComBom = new Set(bomPorSku.keys())
+
+    const resultado: Array<
+      | { tipo: 'com_bom'; chave: string; bom: BomWithStats }
+      | { tipo: 'sem_bom'; chave: string; comp: Componente }
+    > = []
+
+    // 1) BOMs cujo SKU não tem mais cadastro de componente (legado) continuam visíveis
+    for (const bom of boms) {
+      const sku = (bom.sku || '').trim().toUpperCase()
+      const comp = componentes.find((c) => (c.codigo || '').trim().toUpperCase() === sku)
+      if (!comp) {
+        resultado.push({ tipo: 'com_bom', chave: bom.id, bom })
+      }
+    }
+
+    // 2) Todo componente que pode possuir BOM entra na lista
+    for (const comp of componentes) {
+      if (!podePossuirBOM(comp.tipo, comp.categoria)) continue
+      const sku = (comp.codigo || '').trim().toUpperCase()
+      const bom = bomPorSku.get(sku)
+      if (bom) {
+        resultado.push({ tipo: 'com_bom', chave: `bom-${bom.id}`, bom })
+      } else {
+        resultado.push({ tipo: 'sem_bom', chave: `comp-${comp.id}`, comp })
+      }
+    }
+
+    return resultado
+  }, [boms, componentes])
+
+  const bomsFiltrados = linhas.filter((l) => {
+    if (filtroCategoria !== 'todas') {
+      const cat = l.tipo === 'com_bom' ? l.bom.categoria || '' : l.comp.categoria || ''
+      if (cat !== filtroCategoria) return false
+    }
+    if (filtroTipo !== 'todos') {
+      const st = l.tipo === 'com_bom' ? l.bom.ncm_status || '' : ''
+      if (st !== filtroTipo) return false
+    }
+    // "tipo" do filtro: status fiscal (pronto para NF / pendente fiscal)
 
     const q = searchTerm.trim().toLowerCase()
     if (!q) return true
+    if (l.tipo === 'com_bom') {
+      return (
+        l.bom.sku.toLowerCase().includes(q) ||
+        l.bom.nome.toLowerCase().includes(q) ||
+        (l.bom.descricao || '').toLowerCase().includes(q)
+      )
+    }
     return (
-      b.sku.toLowerCase().includes(q) ||
-      b.nome.toLowerCase().includes(q) ||
-      (b.descricao || '').toLowerCase().includes(q)
+      (l.comp.codigo || '').toLowerCase().includes(q) ||
+      (l.comp.descricao || '').toLowerCase().includes(q) ||
+      (l.comp.fornecedor || '').includes(searchTerm.trim())
     )
   })
 
   // Diálogo de BOM aninhada: raiz escolhida por busca (produto final,
   // semi-acabado, componente interno ou KIT — regra podePossuirBOM).
-  const handleOpenCreate = () => setIsDialogOpen(true)
+  const handleOpenCreate = () => {
+    setItemPreSelecionado(null)
+    setIsDialogOpen(true)
+  }
+
+  // Botão "Criar BOM" do card sem BOM: abre o diálogo já com o item pré-selecionado
+  const handleCriarBomItem = (comp: Componente) => {
+    setItemPreSelecionado(comp)
+    setIsDialogOpen(true)
+  }
 
   const handleBomCriada = async (_bom: Bom) => {
     // Recarrega a lista: a BOM nova entra com o item raiz nível 1 já gravado.
+    setItemPreSelecionado(null)
     await loadData()
   }
 
@@ -216,8 +285,8 @@ export default function BomsPage() {
             </h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Estrutura de montagem de equipamentos de refrigeração comercial com precificação
-            consolidada
+            Itens que podem possuir BOM (produto final, semi-acabado, componente interno e KIT) com
+            precificação consolidada — componentes de terceiros ficam em Componentes
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -277,30 +346,30 @@ export default function BomsPage() {
           </Select>
         </div>
         <span className="text-xs text-muted-foreground md:ml-auto whitespace-nowrap">
-          Exibindo <strong>{bomsFiltrados.length}</strong> de {boms.length} BOMs
+          Exibindo <strong>{bomsFiltrados.length}</strong> de {linhas.length} itens
         </span>
       </div>
 
       {/* Barra de edição em lote (só aparece com itens selecionados — admin) */}
       {lote.isAdmin && lote.barraSelecao}
 
-      {/* Grid de Cards de BOMs */}
+      {/* Grid de Cards */}
       {isLoading ? (
         <div className="text-center py-16 text-muted-foreground">
           Carregando BOMs de produtos...
         </div>
-      ) : boms.length === 0 ? (
+      ) : linhas.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent className="space-y-3">
             <PackageCheck className="h-12 w-12 text-muted-foreground mx-auto" />
-            <p className="font-semibold text-foreground text-lg">Nenhum BOM cadastrado</p>
+            <p className="font-semibold text-foreground text-lg">Nenhum item elegível a BOM</p>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Crie a primeira estrutura de produto para calcular custos de materiais, overhead e
-              margem comercial.
+              Cadastre produtos finais, semi-acabados, componentes internos ou KITs em Componentes
+              para montar estruturas de custo aqui.
             </p>
-            <Button onClick={handleOpenCreate} className="mt-2">
-              Criar Primeiro BOM
-            </Button>
+            <Link to="/componentes">
+              <Button className="mt-2">Ir para Componentes</Button>
+            </Link>
           </CardContent>
         </Card>
       ) : bomsFiltrados.length === 0 ? (
@@ -326,101 +395,30 @@ export default function BomsPage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {bomsFiltrados.map((bom) => (
-            <Card
-              key={bom.id}
-              className="flex flex-col justify-between hover:shadow-md transition-all duration-200 border-border group"
-            >
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {lote.isAdmin && lote.colunaCheckbox(bom.id)}
-                    <Badge
-                      variant="outline"
-                      className="font-mono text-xs font-bold text-primary bg-primary/5"
-                    >
-                      {bom.sku}
-                    </Badge>
-                    {bom.categoria && (
-                      <Badge variant="secondary" className="text-[10px] font-medium">
-                        {bom.categoria}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive/70 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => handleDelete(bom.id, bom.sku, e)}
-                      disabled={isDeleting === bom.id}
-                      title="Excluir BOM"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                <CardTitle className="text-lg font-bold text-foreground mt-1 group-hover:text-primary transition-colors">
-                  {bom.nome}
-                </CardTitle>
-                <CardDescription className="text-xs line-clamp-2 mt-1">
-                  {bom.descricao || 'Sem descrição cadastrada'}
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-4 pt-0">
-                {/* Métricas e Indicadores de Custo */}
-                <div className="bg-muted/40 p-3 rounded-lg space-y-2 border border-border/50">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Itens / Linhas:</span>
-                    <span className="font-semibold text-foreground">
-                      {bom.itemCount} componentes
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Custo Consolidado:</span>
-                    <span className="font-mono font-semibold text-foreground">
-                      {formatBRL(bom.custoTotal)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Σ% (Overhead + Margem):</span>
-                    <span className="font-mono text-amber-700 dark:text-amber-400">
-                      {formatPercent(
-                        (bom.overhead_percentual ?? defaultParams.overhead) +
-                          (bom.margem_percentual ?? defaultParams.margem),
-                      )}
-                    </span>
-                  </div>
-                  <div className="pt-2 border-t border-border/60 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground flex items-center gap-1">
-                      <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
-                      Preço Sugerido:
-                    </span>
-                    <span className="font-mono text-base font-bold text-emerald-700 dark:text-emerald-400">
-                      {formatBRL(bom.precoSugerido)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Ações Rápidas */}
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <Link to={`/boms/${bom.id}`}>
-                    <Button variant="default" size="sm" className="w-full gap-1.5 text-xs">
-                      Abrir Editor
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </Button>
-                  </Link>
-                  <Link to={`/precificacao/${bom.id}`}>
-                    <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
-                      <Calculator className="h-3.5 w-3.5" />
-                      Precificação
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {bomsFiltrados.map((linha) =>
+            linha.tipo === 'com_bom' ? (
+              <CardBomExistente
+                key={linha.chave}
+                bom={linha.bom}
+                itemCount={linha.bom.itemCount}
+                custoTotal={linha.bom.custoTotal}
+                precoSugerido={linha.bom.precoSugerido}
+                isAdmin={lote.isAdmin}
+                loteColunaCheckbox={lote.colunaCheckbox}
+                isDeleting={isDeleting === linha.bom.id}
+                onDelete={(e) => handleDelete(linha.bom.id, linha.bom.sku, e)}
+                defaultOverhead={defaultParams.overhead}
+                defaultMargem={defaultParams.margem}
+              />
+            ) : (
+              <CardItemSemBom
+                key={linha.chave}
+                comp={linha.comp}
+                isAdmin={lote.isAdmin}
+                onCriarBom={handleCriarBomItem}
+              />
+            ),
+          )}
         </div>
       )}
 
@@ -432,6 +430,7 @@ export default function BomsPage() {
         onCreated={handleBomCriada}
         defaultOverhead={defaultParams.overhead}
         defaultMargem={defaultParams.margem}
+        itemPreSelecionado={itemPreSelecionado}
       />
 
       {/* Modal Importar BOMs */}
