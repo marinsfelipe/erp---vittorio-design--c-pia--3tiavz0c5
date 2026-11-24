@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { bomsService } from '@/services/boms'
 import type { Bom, BomItem } from '@/types/erp'
-import { montarArvore, flattenTree } from '@/utils/bomTree'
+import { montarArvore, explodirItensCompra, montarContextoCusto } from '@/utils/bomTree'
 import { formatBRL, formatNumber } from '@/utils/formatters'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -90,6 +90,10 @@ export default function ListaComprasPage() {
     loadData()
   }, [])
 
+  // Contexto aninhado para a rolagem descer nos sub-BOMs (explosão SEMPRE
+  // custo puro — nenhum percentual em nível intermediário).
+  const contextoCusto = useMemo(() => montarContextoCusto(bomsItemsMap, boms), [bomsItemsMap, boms])
+
   const handleToggleSelectAll = (select: boolean) => {
     const updated: Record<string, boolean> = {}
     boms.forEach((b) => {
@@ -106,10 +110,9 @@ export default function ListaComprasPage() {
     const multiplier = bomMultipliers[bom.id] || 1
     const items = bomsItemsMap[bom.id] || []
 
-    // Na árvore multi-nível, só itens de terceiros (comprados) entram na lista de compras
-    const itensComprados = flattenTree(montarArvore(bom, items).root)
-      .filter((n) => n.item.item_tipo === 'componente_terceiros')
-      .map((n) => n.item)
+    // Explosão aninhada: desce nos sub-BOMs (custo puro, sem percentuais em
+    // nível intermediário) e coleta apenas itens comprados
+    const itensComprados = explodirItensCompra(montarArvore(bom, items).root, contextoCusto)
 
     itensComprados.forEach((it) => {
       const fornecedor = it.fornecedor?.trim() || 'Fornecedor Não Definido'

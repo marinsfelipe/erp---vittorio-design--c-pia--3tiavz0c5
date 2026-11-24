@@ -167,6 +167,14 @@ export function calcularCustoTotal(
  * Custo consolidado do produto = custo total da raiz da árvore. Quando o
  * contexto de BOMs é informado, o custo desce recursivamente nos sub-BOMs
  * (itens que apontam para outra BOM) com proteção contra ciclo.
+ *
+ * INVARIANTE (regra de encargos — NÃO remover): a explosão aqui dentro é
+ * SEMPRE custo puro. Componentes de terceiros entram pelo custo digitado e
+ * sub-BOMs (semi-acabado, interno, KIT) pelo somatório dos custos da sua
+ * lista — overhead, margem e quaisquer percentuais NUNCA são aplicados em
+ * nível intermediário (nada de taxa sobre taxa). Os percentuais incidem UMA
+ * ÚNICA VEZ, apenas na raiz produto final, via markup divisor
+ * (calcularMarkupDivisor) chamado pelas telas — nunca dentro desta util.
  */
 export function calcularCustoConsolidado(root: TreeNode, ctx?: ContextoCustoBoms): number {
   return calcularCustoTotal(root, ctx, true)

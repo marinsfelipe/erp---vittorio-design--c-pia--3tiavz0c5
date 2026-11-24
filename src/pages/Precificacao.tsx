@@ -4,7 +4,7 @@ import { bomsService } from '@/services/boms'
 import { parametrosService } from '@/services/parametros'
 import { calcularMarkupDivisor, montarPercentuais } from '@/utils/pricing'
 import type { Bom, BomItem, Parametro } from '@/types/erp'
-import { montarArvore, calcularCustoConsolidado } from '@/utils/bomTree'
+import { montarArvore, calcularCustoConsolidado, montarContextoCusto } from '@/utils/bomTree'
 import { formatBRL, formatPercent } from '@/utils/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,6 +41,10 @@ export default function PrecificacaoPage() {
   const [selectedBomId, setSelectedBomId] = useState<string>(id || '')
   const [currentBom, setCurrentBom] = useState<Bom | null>(null)
   const [bomItems, setBomItems] = useState<BomItem[]>([])
+  // Contexto aninhado (TODOS os BOMs + itens em UMA listagem de cada) para o
+  // custo descer nos sub-BOMs. Sem ele, submontagem entraria com custo zerado.
+  const [todosBoms, setTodosBoms] = useState<Bom[]>([])
+  const [itensPorBom, setItensPorBom] = useState<Record<string, BomItem[]>>({})
   const [parametros, setParametros] = useState<Parametro[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
@@ -53,12 +57,15 @@ export default function PrecificacaoPage() {
   const loadInitialData = async () => {
     setIsLoading(true)
     try {
-      const [allBoms, allParams] = await Promise.all([
+      const [allBoms, allParams, itemsGrouped] = await Promise.all([
         bomsService.getAll(),
         parametrosService.getAll(),
+        bomsService.getAllItemsGrouped(),
       ])
       setBomsList(allBoms)
       setParametros(allParams)
+      setTodosBoms(allBoms)
+      setItensPorBom(itemsGrouped)
 
       const pMap: Record<string, number> = {}
       allParams.forEach((p) => {
@@ -123,10 +130,20 @@ export default function PrecificacaoPage() {
     }
   }, [selectedBomId])
 
-  // Custo Consolidado = rolagem recursiva da árvore multi-nível do BOM
+  // Custo Consolidado = rolagem recursiva da árvore multi-nível do BOM, com
+  // explosão aninhada nos sub-BOMs. A explosão é SEMPRE custo puro: nenhum
+  // percentual entra em nível intermediário (fim da taxa sobre taxa) — os
+  // percentuais incidem UMA VEZ, só aqui, no markup divisor sobre a raiz.
+  const contextoCusto = useMemo(
+    () => montarContextoCusto(itensPorBom, todosBoms),
+    [itensPorBom, todosBoms],
+  )
   const custoConsolidado = useMemo(
-    () => (currentBom ? calcularCustoConsolidado(montarArvore(currentBom, bomItems).root) : 0),
-    [currentBom, bomItems],
+    () =>
+      currentBom
+        ? calcularCustoConsolidado(montarArvore(currentBom, bomItems).root, contextoCusto)
+        : 0,
+    [currentBom, bomItems, contextoCusto],
   )
 
   // Percentuais impostos/comissão vêm direto da tabela de parâmetros

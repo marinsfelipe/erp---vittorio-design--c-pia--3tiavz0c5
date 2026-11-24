@@ -5,7 +5,7 @@ import { calcularMarkupDivisor, montarPercentuais } from '@/utils/pricing'
 import { parametrosService } from '@/services/parametros'
 import type { Bom, BomItem, Componente } from '@/types/erp'
 import { podePossuirBOM } from '@/types/erp'
-import { montarArvore, calcularCustoConsolidado } from '@/utils/bomTree'
+import { montarArvore, calcularCustoConsolidado, montarContextoCusto } from '@/utils/bomTree'
 import { NovaBomDialog } from '@/components/bom/NovaBomDialog'
 import { CardBomExistente, CardItemSemBom } from '@/components/bom/CardsBoms'
 import { formatBRL, formatPercent } from '@/utils/formatters'
@@ -120,11 +120,17 @@ export default function BomsPage() {
         componentesService.getAll(),
       ])
 
+      // Contexto aninhado (todos os BOMs + itens) para a rolagem descer nos
+      // sub-BOMs — custo puro, percentuais nunca em nível intermediário
+      setContextoCusto(montarContextoCusto(itemsMap, allBoms))
+
       const bomsWithStats: BomWithStats[] = allBoms.map((bom) => {
         const items: BomItem[] = itemsMap[bom.id] || []
 
-        // Custo consolidado: rolagem recursiva da árvore multi-nível
-        const custoTotal = calcularCustoConsolidado(montarArvore(bom, items).root)
+        // Custo consolidado: rolagem recursiva da árvore multi-nível, com
+        // explosão aninhada nos sub-BOMs — custo puro, sem percentuais em
+        // nível intermediário (percentuais só na raiz produto final)
+        const custoTotal = calcularCustoConsolidado(montarArvore(bom, items).root, contextoCusto)
 
         const overhead =
           bom.overhead_percentual !== undefined ? bom.overhead_percentual : defaultOverhead

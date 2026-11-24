@@ -5,7 +5,7 @@ import { parametrosService } from '@/services/parametros'
 import type { Bom, BomItem, Parametro, OrigemPrecoTabela, TipoSobrepreco } from '@/types/erp'
 import { LABEL_ORIGEM_NCM } from '@/types/erp'
 import { formatBRL, formatPercent } from '@/utils/formatters'
-import { montarArvore, calcularCustoConsolidado } from '@/utils/bomTree'
+import { montarArvore, calcularCustoConsolidado, montarContextoCusto } from '@/utils/bomTree'
 import { montarPercentuais, calcularMarkupDivisor } from '@/utils/pricing'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -127,14 +127,23 @@ export default function TabelaPrecosPage() {
     return map
   }, [parametros])
 
+  // Contexto aninhado para o custo descer nos sub-BOMs (explosão SEMPRE custo
+  // puro — os percentuais incidem UMA VEZ, só no markup divisor da raiz).
+  const contextoCusto = useMemo(
+    () => montarContextoCusto(bomItemsCache, boms),
+    [bomItemsCache, boms],
+  )
+
   // Consolidação das linhas de produtos
   const rows: ProdutoTabelaRow[] = useMemo(() => {
     return boms.map((bom) => {
       const ehPrecoDireto = Boolean(bom.preco_direto)
       const items = bomItemsCache[bom.id] || []
 
-      // 1. Custo Consolidado
-      const custo = ehPrecoDireto ? 0 : calcularCustoConsolidado(montarArvore(bom, items).root)
+      // 1. Custo Consolidado (aninhado, custo puro)
+      const custo = ehPrecoDireto
+        ? 0
+        : calcularCustoConsolidado(montarArvore(bom, items).root, contextoCusto)
 
       // 2. Preço Calculado (Markup Divisor)
       let precoCalc = 0
@@ -192,7 +201,7 @@ export default function TabelaPrecosPage() {
         sobreprecoValor: bom.sobrepreco_valor,
       }
     })
-  }, [boms, bomItemsCache, pMap])
+  }, [boms, bomItemsCache, pMap, contextoCusto])
 
   // Status fiscal e origem do NCM de cada linha (derivados do cadastro do BOM)
   const statusFiscalDe = (r: ProdutoTabelaRow): string =>
