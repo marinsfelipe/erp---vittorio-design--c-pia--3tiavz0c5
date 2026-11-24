@@ -121,8 +121,11 @@ export default function BomsPage() {
       ])
 
       // Contexto aninhado (todos os BOMs + itens) para a rolagem descer nos
-      // sub-BOMs — custo puro, percentuais nunca em nível intermediário
-      setContextoCusto(montarContextoCusto(itemsMap, allBoms))
+      // sub-BOMs — custo puro, percentuais nunca em nível intermediário.
+      // Computado em CONST local (não em estado): a closure de loadData captura
+      // o valor da própria carga — em recargas (ex.: posAplicar do lote) o
+      // estado antigo seria nulo/obsoleto.
+      const contextoCustoLocal = montarContextoCusto(itemsMap, allBoms)
 
       const bomsWithStats: BomWithStats[] = allBoms.map((bom) => {
         const items: BomItem[] = itemsMap[bom.id] || []
@@ -130,7 +133,10 @@ export default function BomsPage() {
         // Custo consolidado: rolagem recursiva da árvore multi-nível, com
         // explosão aninhada nos sub-BOMs — custo puro, sem percentuais em
         // nível intermediário (percentuais só na raiz produto final)
-        const custoTotal = calcularCustoConsolidado(montarArvore(bom, items).root, contextoCusto)
+        const custoTotal = calcularCustoConsolidado(
+          montarArvore(bom, items).root,
+          contextoCustoLocal,
+        )
 
         const overhead =
           bom.overhead_percentual !== undefined ? bom.overhead_percentual : defaultOverhead
