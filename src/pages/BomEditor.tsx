@@ -9,8 +9,10 @@ import {
   validarInclusaoFilho,
   criariaCicloPorCodigo,
   montarArvore,
+  montarContextoCusto,
   calcularCustoConsolidado,
   calcularCustoUnitario,
+  inferirTipoRaizBom,
   type TreeNode,
 } from '@/utils/bomTree'
 import { formatBRL, formatPercent } from '@/utils/formatters'
@@ -45,6 +47,10 @@ export default function BomEditorPage() {
   const navigate = useNavigate()
 
   const [bom, setBom] = useState<Bom | null>(null)
+  // TODOS os BOMs + seus itens (UMA listagem única de cada) — contexto de custo
+  // aninhado que resolve referências de sub-BOM entre BOMs.
+  const [todosBoms, setTodosBoms] = useState<Bom[]>([])
+  const [itensPorBom, setItensPorBom] = useState<Record<string, BomItem[]>>({})
   // Campos de características editáveis (nome/descrição/NCM) — versão local
   const [dadosForm, setDadosForm] = useState({ nome: '', descricao: '', ncm: '' })
   const [items, setItems] = useState<BomItem[]>([])
@@ -102,12 +108,28 @@ export default function BomEditorPage() {
 
   useEffect(() => {
     loadData()
+    // Listagem única de BOMs + itens agrupados (nunca getItems por BOM — rajada
+    // estoura o rate limit 429 do backend). Falha não bloqueia o editor: sem
+    // contexto o custo cai para a rolagem local da própria árvore.
+    Promise.all([bomsService.getAll(), bomsService.getAllItemsGrouped()])
+      .then(([bomsData, grouped]) => {
+        setTodosBoms(bomsData)
+        setItensPorBom(grouped)
+      })
+      .catch((err) => console.warn('Falha ao carregar contexto de BOMs aninhados', err))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   // Árvore multi-nível: rolagem recursiva a partir da raiz produto_final.
   const arvore = useMemo(() => montarArvore(bom, items), [bom, items])
-  const custoConsolidado = useMemo(() => calcularCustoConsolidado(arvore.root), [arvore])
+  const contextoCusto = useMemo(
+    () => montarContextoCusto(itensPorBom, todosBoms),
+    [itensPorBom, todosBoms],
+  )
+  const custoConsolidado = useMemo(
+    () => calcularCustoConsolidado(arvore.root, contextoCusto),
+    [arvore, contextoCusto],
+  )
   const raizNode = arvore.root
 
   const overheadPct =
@@ -193,39 +215,75 @@ export default function BomEditorPage() {
       return false
     }
 
-    let novoItem: BomItem | null = null
-    if (novoTipo === 'componente_terceiros') {
-      if (!selectedComp) {
-        toast.error('Selecione um componente da lista.')
-        return
+    // Referência de SUB-BOM: o código escolhido é o SKU raiz de outro BOM →
+    // grava como referência de sub-BOM (sem duplicar os filhos daquele BOM), e
+    // o custo desce pela explosão do sub-BOM no contexto de custo.
+    const ctx = montarContextoCusto(itensPorBom, todosBoms)
+    const codigoSubBom = (selectedComp?.codigo ?? fabCodigo).trim().toUpperCase()
+    const ehSubBom =
+      !!codigoSubBom &&
+      codigoSubBom !== (bom?.sku || '').trim().toUpperCase() &&
+      ctx.itensPorSku.has(codigoSubBom)
+
+    const novoItem: BomItem | null = (() => {
+      if (novoTipo === 'componente_terceiros') {
+        if (!selectedComp) {
+          toast.error('Selecione um componente da lista.')
+          return null
+        }
+        if (verificarCiclo(selectedComp.codigo)) return null
+        // Sub-BOM: grava como referência (custo calculado pela explosão do
+        // sub-BOM), não pelo custo digitado do componente.
+        if (ehSubBom) {
+          return {
+            id: `novo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            bom_id: id,
+            parent_id: parentNode.item.id,
+            componente_id: selectedComp.id,
+            nivel: parentNode.depth + 1,
+            ordem: filhosDe(parentNode.item.id).length + 1,
+            codigo: selectedComp.codigo,
+            descricao: selectedComp.descricao,
+            categoria: selectedComp.categoria,
+            unidade: selectedComp.unidade,
+            quantidade: qty,
+            custo_unitario: 0,
+            fornecedor: selectedComp.fornecedor,
+            tipo_linha: 'submontagem',
+            item_tipo: 'produto_semi_acabado',
+          } as BomItem
+        }
+        return {
+          id: `novo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          bom_id: id,
+          parent_id: parentNode.item.id,
+          componente_id: selectedComp.id,
+          nivel: parentNode.depth + 1,
+          ordem: filhosDe(parentNode.item.id).length + 1,
+          codigo: selectedComp.codigo,
+          descricao: selectedComp.descricao,
+          categoria: selectedComp.categoria,
+          unidade: selectedComp.unidade,
+          quantidade: qty,
+          custo_unitario: Number(selectedComp.custo_unitario) || 0,
+          fornecedor: selectedComp.fornecedor,
+          tipo_linha: 'componente',
+          item_tipo: 'componente_terceiros',
+        } as BomItem
       }
-      if (verificarCiclo(selectedComp.codigo)) return
-      novoItem = {
-        id: `novo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        bom_id: id,
-        parent_id: parentNode.item.id,
-        componente_id: selectedComp.id,
-        nivel: parentNode.depth + 1,
-        ordem: filhosDe(parentNode.item.id).length + 1,
-        codigo: selectedComp.codigo,
-        descricao: selectedComp.descricao,
-        categoria: selectedComp.categoria,
-        unidade: selectedComp.unidade,
-        quantidade: qty,
-        custo_unitario: Number(selectedComp.custo_unitario) || 0,
-        fornecedor: selectedComp.fornecedor,
-        tipo_linha: 'componente',
-        item_tipo: 'componente_terceiros',
-      }
-    } else {
       const codigo = fabCodigo.trim().toUpperCase()
       const descricao = fabDescricao.trim()
       if (!codigo || !descricao) {
         toast.error('Código e descrição do item fabricado são obrigatórios.')
-        return
+        return null
       }
-      if (verificarCiclo(codigo)) return
-      novoItem = {
+      if (verificarCiclo(codigo)) return null
+      const subBom = todosBoms.find((b) => (b.sku || '').trim().toUpperCase() === codigoSubBom)
+      const itemTipoSubBom =
+        subBom && itensPorBom[subBom.id]
+          ? inferirTipoRaizBom(subBom, itensPorBom[subBom.id] || [])
+          : novoTipo
+      return {
         id: `novo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         bom_id: id,
         parent_id: parentNode.item.id,
@@ -239,14 +297,16 @@ export default function BomEditorPage() {
         custo_unitario: 0,
         fornecedor: 'Produção Interna',
         tipo_linha: 'submontagem',
-        item_tipo: novoTipo,
-      }
-    }
+        item_tipo: itemTipoSubBom,
+      } as BomItem
+    })()
 
-    const itemFinal: BomItem = novoItem
-    setItems((prev) => [...prev, itemFinal])
+    if (!novoItem) return
+    setItems((prev) => [...prev, novoItem])
     toast.success(
-      `${labelTipoItem(novoTipo)} "${itemFinal.descricao}" adicionado como filho de ${parentNode.item.codigo}.`,
+      ehSubBom
+        ? `Sub-BOM "${novoItem.descricao}" (${novoItem.codigo}) vinculado como filho de ${parentNode.item.codigo} — custo vem da lista do sub-BOM.`
+        : `${labelTipoItem(novoItem.item_tipo)} "${novoItem.descricao}" adicionado como filho de ${parentNode.item.codigo}.`,
     )
     setIsAddOpen(false)
   }
@@ -454,6 +514,7 @@ export default function BomEditorPage() {
           onCustoChange={handleCustoChange}
           onAddChild={handleOpenAddChild}
           onRemove={handleRemoveNode}
+          contextoCusto={contextoCusto}
         />
       </div>
 

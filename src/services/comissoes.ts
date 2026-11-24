@@ -4,6 +4,8 @@
 import pb from '@/lib/pocketbase/client'
 import type { Comissao, FiltrosComissoes } from '@/types/financeiro'
 import type { Faturamento } from '@/types/erp'
+import type { Bom, BomItem } from '@/types/erp'
+import { montarArvore, montarContextoCusto, calcularCustoConsolidado } from '@/utils/bomTree'
 import { chaveMes } from '@/services/fluxoCaixa'
 
 export const comissoesService = {
@@ -79,11 +81,12 @@ function mesDeData(dataISO?: string): number {
 }
 
 /**
- * Custo consolidado dos BOMs por proposta, a partir de UMA listagem única de
- * bom_items (getAllItemsGrouped). Custo consolidado = soma do custo total
- * (quantidade × custo unitário) dos itens de nível 1 — a raiz/produto final já
- * consolida os filhos por rolagem, então somar apenas o nível 1 evita dupla
- * contagem de submontagens.
+ * Custo consolidado dos BOMs por proposta, sobre a hierarquia ANINHADA:
+ * UMA listagem única de bom_items (agrupada), UMA de boms, contexto de custo
+ * e explosão recursiva por BOM (montarArvore + calcularCustoConsolidado) —
+ * um item fabricado cujo código é o SKU de outro BOM resolve o custo pela
+ * sub-lista daquele BOM (sub-BOM), com proteção de ciclo. Assim o custo dos
+ * produtos vendidos inclui os itens das sub-listas, não só os diretos.
  */
 export async function custoConsolidadoPorProposta(
   propostaIds: string[],
@@ -91,24 +94,36 @@ export async function custoConsolidadoPorProposta(
   const map = new Map<string, number>()
   if (propostaIds.length === 0) return map
 
-  let itens: Array<{ bom_id: string; nivel: number; quantidade: number; custo_unitario: number }> =
-    []
+  let boms: Bom[] = []
+  let itensGrouped: Record<string, BomItem[]> = {}
   try {
-    itens = await pb.collection('bom_items').getFullList({
-      sort: 'bom_id,ordem',
-      $cancelKey: 'dre-bom-items',
-    })
+    const [bomsData, grouped] = await Promise.all([
+      pb.collection('boms').getFullList({ $cancelKey: 'dre-boms' }),
+      pb.collection('bom_items').getFullList({
+        sort: 'bom_id,ordem,created',
+        $cancelKey: 'dre-bom-items',
+      }),
+    ])
+    boms = bomsData as unknown as Bom[]
+    itensGrouped = {}
+    for (const it of grouped as unknown as BomItem[]) {
+      if (!itensGrouped[it.bom_id]) itensGrouped[it.bom_id] = []
+      itensGrouped[it.bom_id].push(it)
+    }
   } catch (err) {
-    console.warn('DRE: falha ao listar bom_items — custo dos produtos vendidos = 0.', err)
+    console.warn('DRE: falha ao listar boms/bom_items — custo dos produtos vendidos = 0.', err)
     return map
   }
 
-  // Total por BOM (itens de nível 1) — a raiz consolida os filhos.
+  // Custo consolidado por BOM, recursivo entre BOMs (sub-BOMs) e memoizado
+  // pelo contexto — um BOM é explodido uma única vez mesmo citado em vários.
+  const ctx = montarContextoCusto(itensGrouped, boms)
   const custoPorBom = new Map<string, number>()
-  for (const it of itens) {
-    if ((Number(it.nivel) || 0) !== 1) continue
-    const custo = (Number(it.quantidade) || 0) * (Number(it.custo_unitario) || 0)
-    custoPorBom.set(it.bom_id, (custoPorBom.get(it.bom_id) || 0) + custo)
+  for (const bom of boms) {
+    const itens = itensGrouped[bom.id] || []
+    if (itens.length === 0) continue
+    const arvore = montarArvore(bom, itens)
+    custoPorBom.set(bom.id, calcularCustoConsolidado(arvore.root, ctx))
   }
 
   // bom_id → proposta_id: 1 listagem única de proposta_items filtrada.

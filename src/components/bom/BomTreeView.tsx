@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react'
 import type { Bom, BomItem } from '@/types/erp'
 import { labelTipoItem } from '@/types/erp'
-import { montarArvore, calcularCustoUnitario, type TreeNode } from '@/utils/bomTree'
+import {
+  montarArvore,
+  montarContextoCusto,
+  calcularCustoUnitario,
+  type ContextoCustoBoms,
+  type TreeNode,
+} from '@/utils/bomTree'
 import { formatBRL } from '@/utils/formatters'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -33,6 +39,8 @@ interface BomTreeViewProps {
   onCustoChange?: (id: string, custo: number) => void
   onAddChild?: (node: TreeNode) => void
   onRemove?: (node: TreeNode) => void
+  /** Contexto de custo aninhado (todos os BOMs) — resolve referências de sub-BOM. */
+  contextoCusto?: ContextoCustoBoms
 }
 
 /**
@@ -49,6 +57,7 @@ export default function BomTreeView({
   onCustoChange,
   onAddChild,
   onRemove,
+  contextoCusto,
 }: BomTreeViewProps) {
   const [expandedInterno, setExpandedInterno] = useState<Set<string>>(new Set())
 
@@ -78,10 +87,19 @@ export default function BomTreeView({
     const temFilhos = children.length > 0
     const aberto = expanded.has(item.id)
     const fabricado = item.item_tipo !== 'componente_terceiros'
-    const custoUnit = calcularCustoUnitario(node)
+    const custoUnit = calcularCustoUnitario(node, contextoCusto)
     const custoTotal = (Number(item.quantidade) || 0) * custoUnit
     const podeEditar = Boolean(onQuantidadeChange || onCustoChange)
     const ehRaiz = depth === 0
+    // Sub-BOM: o código é o SKU raiz de outro BOM (referência aninhada) — a
+    // árvore mostra o badge e o custo vem da sub-lista, não de filhos locais.
+    const skuNorm = (item.codigo || '').trim().toUpperCase()
+    const ehSubBomRef =
+      !!contextoCusto &&
+      depth > 0 &&
+      !!skuNorm &&
+      contextoCusto.itensPorSku.has(skuNorm) &&
+      contextoCusto.itensPorSku.get(skuNorm) !== items
 
     return (
       <div key={item.id}>
@@ -111,6 +129,15 @@ export default function BomTreeView({
           >
             {labelTipoItem(item.item_tipo)}
           </Badge>
+          {ehSubBomRef && (
+            <Badge
+              variant="outline"
+              className="text-[10px] whitespace-nowrap shrink-0 bg-sky-500/10 text-sky-700 dark:text-sky-400 border-sky-500/30"
+              title={`Sub-BOM vinculado — custo da sub-lista: ${formatBRL(custoUnit)}`}
+            >
+              sub-BOM
+            </Badge>
+          )}
 
           {/* Código */}
           <span className="font-mono text-xs font-semibold text-primary w-28 shrink-0 truncate">
@@ -227,7 +254,10 @@ export default function BomTreeView({
           unitário dos itens comprados)
         </span>
         <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
-          {formatBRL(calcularCustoUnitario(tree.root) * (Number(tree.root.item.quantidade) || 0))}
+          {formatBRL(
+            calcularCustoUnitario(tree.root, contextoCusto, undefined, true) *
+              (Number(tree.root.item.quantidade) || 0),
+          )}
         </span>
       </div>
     </div>

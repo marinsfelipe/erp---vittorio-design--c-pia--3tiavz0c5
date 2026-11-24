@@ -75,11 +75,19 @@ export function NovaBomDialog({
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
-    if (!open)
-      return componentesService
-        .getAll()
-        .then((comps) => setComponentes(comps))
-        .catch(() => toast.error('Erro ao carregar componentes'))
+    if (!open) return
+    let ativo = true
+    componentesService
+      .getAll()
+      .then((comps) => {
+        if (ativo) setComponentes(comps)
+      })
+      .catch(() => {
+        if (ativo) toast.error('Erro ao carregar componentes')
+      })
+    return () => {
+      ativo = false
+    }
   }, [open])
 
   // Skus que já são raiz de BOM — bloqueia criação duplicada
@@ -152,8 +160,10 @@ export function NovaBomDialog({
         overhead_percentual: parseFloat(overhead) || defaultOverhead,
         margem_percentual: parseFloat(margem) || defaultMargem,
       } as any)
-      // Item raiz gravado como nível 1, tipo escolhido (padrão do banco: raiz
-      // sempre nível 1; tipo produto_final para produto acabado).
+      // Item raiz gravado como nível 1 e item_tipo 'produto_final' — é essa a
+      // convenção do banco (e o que montarArvore procura como raiz). O tipo real
+      // escolhido (semi-acabado, componente interno, KIT) vem do cadastro do
+      // componente; aqui fica só como metadado de exibição via tipo_linha.
       await bomsService.createItem({
         bom_id: created.id,
         nivel: 1,
@@ -165,9 +175,9 @@ export function NovaBomDialog({
         quantidade: 1,
         custo_unitario: 0,
         fornecedor: '',
-        tipo_linha: 'submontagem',
+        tipo_linha: tipoRaiz === 'produto_final' ? 'submontagem' : tipoRaiz,
         parent_id: '',
-        item_tipo: tipoRaiz,
+        item_tipo: 'produto_final',
       } as any)
       toast.success(`BOM ${created.sku} criada com sucesso!`)
       onCreated(created)
