@@ -4,20 +4,12 @@ import { calcularMarkupDivisor, montarPercentuais } from '@/utils/pricing'
 import { parametrosService } from '@/services/parametros'
 import type { Bom, BomItem } from '@/types/erp'
 import { montarArvore, calcularCustoConsolidado } from '@/utils/bomTree'
+import { NovaBomDialog } from '@/components/bom/NovaBomDialog'
 import { formatBRL, formatPercent } from '@/utils/formatters'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog'
 import {
   Plus,
   ArrowRight,
@@ -33,7 +25,7 @@ import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 import { Upload } from 'lucide-react'
 import ImportarBomDialog from '@/components/bom/ImportarBomDialog'
-import { CategoriaProdutoSelector } from '@/components/bom/CategoriaProdutoSelector'
+
 import { categoriasProdutoService } from '@/services/categoriasProduto'
 import {
   Select,
@@ -59,18 +51,10 @@ export default function BomsPage() {
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
   const [defaultParams, setDefaultParams] = useState({ overhead: 14.5, margem: 28.0 })
 
-  const [formData, setFormData] = useState({
-    sku: '',
-    nome: '',
-    descricao: '',
-    categoria: 'Balcões Refrigerados',
-    overhead_percentual: '14.5',
-    margem_percentual: '28.0',
-  })
+  // (O estado do formulário de criação mora no NovaBomDialog.)
 
   // Edição em lote (exclusivo do admin): categoria e NCM
   const [categoriasProduto, setCategoriasProduto] = useState<string[]>([])
-  const [dialogoNcm, setDialogoNcm] = useState('')
   const lote = useEdicaoLote({
     rotuloItem: 'BOM',
     campos: [
@@ -192,41 +176,13 @@ export default function BomsPage() {
     )
   })
 
-  const handleOpenCreate = () => {
-    setFormData({
-      sku: '',
-      nome: '',
-      descricao: '',
-      categoria: 'Balcões Refrigerados',
-      overhead_percentual: String(defaultParams.overhead),
-      margem_percentual: String(defaultParams.margem),
-    })
-    setIsDialogOpen(true)
-  }
+  // Diálogo de BOM aninhada: raiz escolhida por busca (produto final,
+  // semi-acabado, componente interno ou KIT — regra podePossuirBOM).
+  const handleOpenCreate = () => setIsDialogOpen(true)
 
-  const handleCreateBom = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!formData.sku.trim() || !formData.nome.trim()) {
-      toast.error('SKU e nome do produto são obrigatórios')
-      return
-    }
-
-    try {
-      const created = await bomsService.create({
-        sku: formData.sku.trim().toUpperCase(),
-        nome: formData.nome.trim(),
-        descricao: formData.descricao.trim(),
-        categoria: formData.categoria.trim(),
-        overhead_percentual: parseFloat(formData.overhead_percentual) || defaultParams.overhead,
-        margem_percentual: parseFloat(formData.margem_percentual) || defaultParams.margem,
-      })
-      toast.success(`BOM ${created.sku} criado com sucesso!`)
-      setIsDialogOpen(false)
-      loadData()
-    } catch (err: any) {
-      console.error(err)
-      toast.error(err?.message || 'Erro ao criar BOM. Verifique se o SKU já existe.')
-    }
+  const handleBomCriada = async (_bom: Bom) => {
+    // Recarrega a lista: a BOM nova entra com o item raiz nível 1 já gravado.
+    await loadData()
   }
 
   const handleDelete = async (id: string, sku: string, e: React.MouseEvent) => {
@@ -468,94 +424,15 @@ export default function BomsPage() {
         </div>
       )}
 
-      {/* Modal Criar BOM */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Novo BOM de Refrigeração Comercial</DialogTitle>
-            <DialogDescription>
-              Cadastre um novo SKU para iniciar a montagem estrutural de componentes e precificação.
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handleCreateBom} className="space-y-4 py-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="sku">SKU do Produto *</Label>
-                <Input
-                  id="sku"
-                  placeholder="Ex: BAL-INOX-180"
-                  className="font-mono uppercase"
-                  value={formData.sku}
-                  onChange={(e) => setFormData({ ...formData, sku: e.target.value.toUpperCase() })}
-                  required
-                />
-              </div>
-
-              <CategoriaProdutoSelector
-                id="categoria"
-                label="Categoria do Equipamento"
-                value={formData.categoria}
-                onChange={(cat) => setFormData({ ...formData, categoria: cat })}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="nome">Nome Comercial do Equipamento *</Label>
-              <Input
-                id="nome"
-                placeholder="Ex: Balcão Frigorífico Inox 1.8m"
-                value={formData.nome}
-                onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="descricao">Descrição / Aplicação</Label>
-              <Input
-                id="descricao"
-                placeholder="Ex: Destinado à conservação e exposição de carnes e frios"
-                value={formData.descricao}
-                onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 pt-1">
-              <div className="space-y-1.5">
-                <Label htmlFor="overhead">Overhead Estimado (%)</Label>
-                <Input
-                  id="overhead"
-                  type="number"
-                  step="0.1"
-                  value={formData.overhead_percentual}
-                  onChange={(e) =>
-                    setFormData({ ...formData, overhead_percentual: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="margem">Margem Alvo Desejada (%)</Label>
-                <Input
-                  id="margem"
-                  type="number"
-                  step="0.1"
-                  value={formData.margem_percentual}
-                  onChange={(e) => setFormData({ ...formData, margem_percentual: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <DialogFooter className="pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit">Criar BOM</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* Modal Criar BOM (aninhada: raiz por busca, podePossuirBOM) */}
+      <NovaBomDialog
+        open={isDialogOpen}
+        onOpenChange={setIsDialogOpen}
+        bomsExistentes={boms}
+        onCreated={handleBomCriada}
+        defaultOverhead={defaultParams.overhead}
+        defaultMargem={defaultParams.margem}
+      />
 
       {/* Modal Importar BOMs */}
       <ImportarBomDialog open={isImportOpen} onOpenChange={setIsImportOpen} onImported={loadData} />
