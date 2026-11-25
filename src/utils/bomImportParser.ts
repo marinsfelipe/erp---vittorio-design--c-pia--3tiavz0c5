@@ -53,7 +53,7 @@ export interface NoImportado {
 }
 
 export interface BomsInterpretados {
-  boms: NoImportado[] // raízes (nível 0), um por BOM
+  boms: NoImportado[] // raízes — uma por BOM (nível base da planilha)
   erros: ErroImportacao[]
   avisos: AvisoImportacao[]
   totalLinhas: number
@@ -338,8 +338,16 @@ export async function lerArquivoBom(file: File): Promise<Record<string, unknown>
 // ---------------------------------------------------------------------------
 
 /**
- * Monta a(s) árvore(s): cada linha de nível 0 inicia um novo BOM; o pai de
- * cada linha é a linha anterior mais próxima com nível imediatamente inferior.
+ * Monta a(s) árvore(s): cada linha cujo nível é o MENOR nível válido da
+ * planilha (a "base") inicia um novo BOM; o pai de cada linha é a linha
+ * anterior mais próxima com nível imediatamente inferior.
+ * Formatos aceitos:
+ * a) base 0 — produto final como raiz (0, 1, 2...): comportamento antigo.
+ * b) base 1 — blocos cuja raiz é componente interno / semi-acabado / KIT
+ *    (1, 2, 3...), sem nível 0: cada bloco de nível 1 vira uma BOM completa.
+ * Múltiplas listas: cada vez que o nível reinicia para a base, começa uma
+ * nova BOM. Níveis intermediários viram sub-BOM/referência na regra já
+ * existente (código raiz de outro BOM).
  */
 export function interpretarBoms(rows: Record<string, unknown>[]): BomsInterpretados {
   const erros: ErroImportacao[] = []
@@ -348,10 +356,16 @@ export function interpretarBoms(rows: Record<string, unknown>[]): BomsInterpreta
   const pilha: NoImportado[] = []
   const codigosVistos = new Map<string, number>() // código -> linha da 1ª ocorrência
 
+  // 1ª passada: mapear as linhas e descobrir a base (o menor nível válido da
+  // planilha) — em vez de assumir que a raiz é sempre o nível 0.
+  const linhas = rows.map((row, i) => mapearLinha(row, i + 2)) // linha 1 = cabeçalho
+  const niveisValidos = linhas.filter((l) => l.nivel >= 0)
+  const base = niveisValidos.length > 0 ? Math.min(...niveisValidos.map((l) => l.nivel)) : 0
+
   let totalLinhas = 0
 
-  for (let i = 0; i < rows.length; i++) {
-    const linha = mapearLinha(rows[i], i + 2) // linha 1 = cabeçalho
+  for (let i = 0; i < linhas.length; i++) {
+    const linha = linhas[i]
 
     // Linha totalmente vazia: pular silenciosamente
     if (
@@ -377,19 +391,25 @@ export function interpretarBoms(rows: Record<string, unknown>[]): BomsInterpreta
     else if (linha.quantidade <= 0) no.avisos.push('Quantidade igual a zero')
     if (!linha.temCusto) no.avisos.push('Custo unitário ausente')
 
-    // --- Código duplicado ------------------------------------------------
+    // --- Código repetido ---------------------------------------------------
+    // O MESMO componente de terceiros aparece em várias listas da planilha
+    // (ex.: uma chapa usada em 40 subconjuntos): isso é esperado — vira aviso,
+    // não erro, e o cadastro único é reaproveitado em todas as BOMs.
     const chaveCodigo = linha.codigo.toUpperCase()
     if (linha.codigo) {
       const primeiraLinha = codigosVistos.get(chaveCodigo)
       if (primeiraLinha !== undefined) {
-        no.erros.push(`Código duplicado (também na linha ${primeiraLinha})`)
+        no.avisos.push(
+          `Código repetido (também na linha ${primeiraLinha}) — o mesmo cadastro será reaproveitado`,
+        )
       } else {
         codigosVistos.set(chaveCodigo, linha.linha)
       }
     }
 
     // --- Hierarquia --------------------------------------------------------
-    if (linha.nivel === 0) {
+    // Linha na nível base = raiz de um novo BOM (novo bloco/lista).
+    if (linha.nivel === base) {
       pilha.length = 0
       pilha.push(no)
       raizes.push(no)
@@ -422,8 +442,9 @@ export function interpretarBoms(rows: Record<string, unknown>[]): BomsInterpreta
   // --- Tipos ausentes/inválidos: inferir e avisar (não bloquear) ------------
   const resolverTipo = (no: NoImportado) => {
     if (no.tipoDesconhecido) {
+      const ehRaiz = no.linha.nivel === base
       const assumido: TipoItemBom =
-        no.linha.nivel === 0
+        ehRaiz && base === 0
           ? 'produto_final'
           : no.filhos.length > 0
             ? 'componente_interno'
