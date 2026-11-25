@@ -79,6 +79,71 @@ export const bomsService = {
     return { atualizados, erros }
   },
 
+  /**
+   * Reaproveitar lista: copia os itens da BOM de ORIGEM para a BOM de DESTINO,
+   * remapeando a hierarquia (parent_id) para o destino. A BOM de origem fica
+   * INTACTA. Gravação EM SÉRIE (um create por vez, sem Promise.all — rajada de
+   * requests estoura o rate limit 429 do backend e derruba a página).
+   *
+   * A raiz da origem (nivel 1, sem parent) NÃO é copiada: o destino já tem a
+   * sua própria raiz (produto final / semi-acabado). Os filhos diretos da raiz
+   * de origem passam a pendurar na raiz do destino (ou no topo do destino,
+   * quando ele ainda não tem item raiz gravado).
+   */
+  async copiarLista(origemId: string, destinoId: string): Promise<{ itensCopiados: number }> {
+    const [origem, destino] = await Promise.all([this.getItems(origemId), this.getItems(destinoId)])
+
+    const raizOrigem = origem.find((it) => !it.parent_id) ?? null
+    const raizDestino = destino.find((it) => !it.parent_id) ?? null
+
+    // Criar pais antes dos filhos: ordena por profundidade na árvore da origem
+    const prof = new Map<string, number>()
+    const profundidade = (it: BomItem, guard = 0): number => {
+      if (!it.parent_id) return 0
+      if (guard > 50) return 0
+      const pai = origem.find((o) => o.id === it.parent_id)
+      if (!pai) return 0
+      const p = prof.get(pai.id)
+      if (p !== undefined) return p + 1
+      return profundidade(pai, guard + 1) + 1
+    }
+    origem.forEach((it) => prof.set(it.id, profundidade(it)))
+    const ordenados = [...origem].sort((a, b) => (prof.get(a.id) ?? 0) - (prof.get(b.id) ?? 0))
+
+    const idMap = new Map<string, string>() // id do item na origem -> id criado no destino
+    if (raizOrigem) idMap.set(raizOrigem.id, raizDestino?.id ?? '')
+
+    let itensCopiados = 0
+    for (const it of ordenados) {
+      if (raizOrigem && it.id === raizOrigem.id) continue
+      let parentId = ''
+      if (it.parent_id) {
+        parentId = idMap.get(it.parent_id) ?? ''
+      } else if (raizDestino) {
+        parentId = raizDestino.id
+      }
+      const criado = await this.createItem({
+        bom_id: destinoId,
+        componente_id: it.componente_id || '',
+        nivel: it.nivel,
+        ordem: it.ordem,
+        codigo: it.codigo,
+        descricao: it.descricao,
+        categoria: it.categoria || '',
+        unidade: it.unidade || 'UN',
+        quantidade: Number(it.quantidade) || 0,
+        custo_unitario: Number(it.custo_unitario) || 0,
+        fornecedor: it.fornecedor || '',
+        tipo_linha: it.tipo_linha || 'componente',
+        item_tipo: it.item_tipo,
+        parent_id: parentId,
+      } as Omit<BomItem, 'id' | 'created' | 'updated'>)
+      idMap.set(it.id, criado.id)
+      itensCopiados++
+    }
+    return { itensCopiados }
+  },
+
   // Itens do BOM
   async getItems(bomId: string): Promise<BomItem[]> {
     return await pb.collection('bom_items').getFullList<BomItem>({

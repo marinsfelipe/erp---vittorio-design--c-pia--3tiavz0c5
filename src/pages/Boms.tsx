@@ -22,11 +22,13 @@ import {
   DollarSign,
   TrendingUp,
   Percent,
+  Copy,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 import { Upload } from 'lucide-react'
 import ImportarBomDialog from '@/components/bom/ImportarBomDialog'
+import { ReaproveitarListaDialog } from '@/components/bom/ReaproveitarListaDialog'
 
 import { categoriasProdutoService } from '@/services/categoriasProduto'
 import {
@@ -51,6 +53,7 @@ export default function BomsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isImportOpen, setIsImportOpen] = useState(false)
+  const [isReaproveitarOpen, setIsReaproveitarOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState<string | null>(null)
   const [defaultParams, setDefaultParams] = useState({ overhead: 14.5, margem: 28.0 })
   // Item pré-selecionado no diálogo (aberto pelo botão "Criar BOM" do card)
@@ -312,6 +315,12 @@ export default function BomsPage() {
             <Upload className="h-4 w-4" />
             Importar BOM
           </Button>
+          {lote.isAdmin && (
+            <Button variant="outline" onClick={() => setIsReaproveitarOpen(true)} className="gap-2">
+              <Copy className="h-4 w-4" />
+              Reaproveitar lista
+            </Button>
+          )}
           <Button onClick={handleOpenCreate} className="gap-2">
             <Plus className="h-4 w-4" />
             Novo BOM (SKU)
@@ -447,6 +456,16 @@ export default function BomsPage() {
 
       {/* Modal Importar BOMs */}
       <ImportarBomDialog open={isImportOpen} onOpenChange={setIsImportOpen} onImported={loadData} />
+
+      {/* Modal Reaproveitar lista (exclusivo do admin) */}
+      {lote.isAdmin && (
+        <ReaproveitarListaDialog
+          open={isReaproveitarOpen}
+          onOpenChange={setIsReaproveitarOpen}
+          boms={boms}
+          onCopied={loadData}
+        />
+      )}
 
       {lote.dialogo}
       {lote.confirmDialog}

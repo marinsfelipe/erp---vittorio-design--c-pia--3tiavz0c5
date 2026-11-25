@@ -257,9 +257,10 @@ export default function ImportarBomDialog({
           </DialogTitle>
           <DialogDescription>
             Selecione um arquivo .xlsx ou .csv com as colunas Nível, Código do Componente,
-            Descrição, Tipo, Categoria, Unidade, Quantidade, Custo Unitário e Fornecedor. Cada linha
-            de Nível 0 inicia um novo BOM. Um preview e um relatório de validação serão exibidos
-            antes de gravar.
+            Descrição, Tipo, Categoria, Unidade, Quantidade, Custo Unitário e Fornecedor. A base da
+            lista é o MENOR nível presente na planilha (pode ser a raiz no nível 1 com itens no
+            nível 2, ou a sequência 0/1/2) — cada reinício nesse nível abre uma nova lista. Um
+            preview e um relatório de validação serão exibidos antes de gravar.
           </DialogDescription>
         </DialogHeader>
 
@@ -327,9 +328,10 @@ export default function ImportarBomDialog({
           {interpretado && (
             <>
               <div className="flex flex-wrap items-center gap-2 text-xs">
-                <Badge variant="outline" className="gap-1">
+                <Badge variant="outline" className="gap-1 border-primary/40 text-primary">
                   <FileSpreadsheet className="h-3 w-3" />
-                  {interpretado.boms.length} BOM(s)
+                  {interpretado.boms.length}{' '}
+                  {interpretado.boms.length === 1 ? 'lista detectada' : 'listas detectadas'}
                 </Badge>
                 <Badge variant="outline" className="gap-1">
                   {interpretado.totalLinhas} linhas
@@ -371,18 +373,28 @@ export default function ImportarBomDialog({
                 <ScrollArea className="max-h-64">
                   {interpretado.boms.length === 0 ? (
                     <p className="px-3 py-6 text-sm text-muted-foreground text-center">
-                      Nenhuma linha de nível 0 encontrada — verifique a coluna Nível.
+                      Nenhuma lista encontrada — a base da lista é o menor nível presente na
+                      planilha; verifique a coluna Nível.
                     </p>
                   ) : (
                     <div>
-                      {interpretado.boms.map((bom) => (
-                        <NoArvore
-                          key={bom.linha.linha}
-                          no={bom}
-                          profundidade={0}
-                          expandidos={expandidos}
-                          toggle={toggle}
-                        />
+                      {interpretado.boms.map((bom, i) => (
+                        <div key={bom.linha.linha}>
+                          <div className="bg-primary/[0.07] border-b border-border px-3 py-1.5 text-xs font-semibold text-primary flex items-center gap-2">
+                            <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />
+                            Lista {i + 1} —{' '}
+                            <span className="font-mono">{bom.linha.codigo || '—'}</span>
+                            <span className="text-muted-foreground font-normal truncate">
+                              {bom.linha.descricao || ''}
+                            </span>
+                          </div>
+                          <NoArvore
+                            no={bom}
+                            profundidade={0}
+                            expandidos={expandidos}
+                            toggle={toggle}
+                          />
+                        </div>
                       ))}
                     </div>
                   )}
