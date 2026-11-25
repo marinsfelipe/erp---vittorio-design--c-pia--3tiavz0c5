@@ -35,7 +35,7 @@ import {
 import { toast } from 'sonner'
 import type { NoImportado, BomsInterpretados } from '@/utils/bomImportParser'
 import { lerArquivoBom, interpretarBoms, baixarModeloImportacaoBom } from '@/utils/bomImportParser'
-import { gravarImportacaoBom } from '@/services/bomImport'
+import { gravarImportacaoBom, anotarCustosEfetivos } from '@/services/bomImport'
 import { formatBRL } from '@/utils/formatters'
 import { labelTipoItem } from '@/types/erp'
 
@@ -103,8 +103,26 @@ function NoArvore({
         </span>
         <span className="w-24 shrink-0 text-right font-mono text-xs">
           {fabricado ? (
-            <span className="text-muted-foreground italic" title="Calculado por rolagem dos filhos">
-              {formatBRL(no.custoRolado ?? 0)}
+            <span
+              className={
+                no.custoHerdado
+                  ? 'text-amber-700 dark:text-amber-400 italic'
+                  : 'text-muted-foreground italic'
+              }
+              title={
+                no.custoHerdado
+                  ? 'Custo rolado dos filhos considerando preços herdados do cadastro'
+                  : 'Calculado por rolagem dos filhos'
+              }
+            >
+              {formatBRL(no.custoEfetivo ?? no.custoRolado ?? 0)}
+            </span>
+          ) : no.custoHerdado ? (
+            <span
+              className="text-amber-700 dark:text-amber-400 italic"
+              title="Preço herdado do cadastro (planilha sem preço)"
+            >
+              {formatBRL(no.custoEfetivo ?? 0)}
             </span>
           ) : (
             formatBRL(no.linha.custoUnitario)
@@ -205,6 +223,9 @@ export default function ImportarBomDialog({
         return
       }
       const res = interpretarBoms(rows)
+      // Anota o custo EFETIVO (planilha > cadastro > 0) para o preview mostrar
+      // o preço que de fato será gravado — inclusive a herança do cadastro.
+      await anotarCustosEfetivos(res.boms)
       setInterpretado(res)
       setExpandidos(new Set(coletarChavesExpandiveis(res.boms)))
       if (res.erros.length > 0) {
@@ -400,6 +421,19 @@ export default function ImportarBomDialog({
                   )}
                 </ScrollArea>
               </div>
+
+              {/* Aviso resumido: itens sem preço herdam o preço do cadastro */}
+              {interpretado.itensSemPreco > 0 && (
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                  <p className="text-amber-700 dark:text-amber-400">
+                    <span className="font-semibold">{interpretado.itensSemPreco}</span>{' '}
+                    {interpretado.itensSemPreco === 1 ? 'item veio' : 'itens vieram'} sem preço na
+                    planilha — será usado o preço já cadastrado no sistema (ou zero, se o item for
+                    novo). O cadastro existente nunca é zerado pela importação.
+                  </p>
+                </div>
+              )}
 
               {/* Relatório de validação */}
               <div className="rounded-lg border border-border overflow-hidden flex-1 min-h-0 flex flex-col">

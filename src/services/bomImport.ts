@@ -17,9 +17,57 @@ async function mapaComponentes(): Promise<Map<string, Componente>> {
 }
 
 /**
+ * Regra de preço na importação (para produto acabado, componente de terceiros,
+ * componente interno e KIT):
+ * 1. Planilha traz preço (> 0) -> grava o preço da planilha.
+ * 2. Sem preço (célula vazia ou zero) e o item JÁ EXISTE no cadastro ->
+ *    NÃO zera: usa/mantém o preço existente do sistema.
+ * 3. Sem preço e inexistente -> cria com valor zerado (0).
+ * O custo do cadastro NUNCA é sobrescrito com 0/vazio pela importação.
+ */
+function custoEfetivo(custoUnitario: number, existente?: Componente): number {
+  if (custoUnitario > 0) return custoUnitario
+  if (existente) return Number(existente.custo_unitario) || 0
+  return 0
+}
+
+/**
+ * Recalcula a rolagem de custo dos nós fabricados usando o custo EFETIVO de
+ * cada filho (planilha > cadastro > 0), na hora de gravar — o preview do
+ * parser rola só com os preços da planilha, que podem estar vazios/zerados.
+ */
+function custoEfetivoNo(no: NoImportado, mapa: Map<string, Componente>): number {
+  if (no.linha.tipo === 'componente_terceiros') {
+    return custoEfetivo(no.linha.custoUnitario, mapa.get(no.linha.codigo.toUpperCase()))
+  }
+  return no.filhos.reduce((acc, f) => acc + f.linha.quantidade * custoEfetivoNo(f, mapa), 0)
+}
+
+/**
+ * Anota a árvore do preview com o custo EFETIVO que será gravado (planilha >
+ * cadastro > 0), para o usuário conferir antes de gravar — inclusive nos nós
+ * fabricados, cujo custo rolado passa a considerar os preços herdados.
+ */
+export async function anotarCustosEfetivos(raizes: NoImportado[]): Promise<void> {
+  const mapa = await mapaComponentes()
+  const anotar = (no: NoImportado): number => {
+    const existente = mapa.get(no.linha.codigo.toUpperCase())
+    if (no.linha.tipo === 'componente_terceiros') {
+      no.custoEfetivo = custoEfetivo(no.linha.custoUnitario, existente)
+      no.custoHerdado = no.linha.custoUnitario <= 0 && (Number(existente?.custo_unitario) || 0) > 0
+    } else {
+      no.custoEfetivo = no.filhos.reduce((acc, f) => acc + f.linha.quantidade * anotar(f), 0)
+      no.custoHerdado = no.linha.custoUnitario <= 0 && no.filhos.some((f) => f.custoHerdado)
+    }
+    return no.custoEfetivo
+  }
+  raizes.forEach(anotar)
+}
+
+/**
  * Grava o resultado da importação: cria os componentes novos (reutilizando os
- * existentes por código), cria um BOM por raiz de nível 0 e grava os itens
- * com parent_id, pais antes dos filhos.
+ * existentes por código), cria um BOM por raiz da planilha e grava os itens
+ * com parent_id, pais antes dos filhos. Em série, sem rajada de requests.
  */
 export async function gravarImportacaoBom(
   raizes: NoImportado[],
@@ -98,21 +146,27 @@ async function gravarItens(
   let componente = mapa.get(chave)
 
   if (!componente) {
+    // Componente novo: custo efetivo (planilha > existente > 0) — para itens
+    // novos sem preço o "existente" não existe, logo grava 0.
     componente = await componentesService.create({
       codigo: linha.codigo,
       descricao: linha.descricao,
       categoria: linha.categoria,
       unidade: linha.unidade,
-      custo_unitario: linha.custoUnitario,
+      custo_unitario: custoEfetivo(linha.custoUnitario, undefined),
       fornecedor: linha.fornecedor,
       tipo: linha.tipo,
     } as Omit<Componente, 'id' | 'created' | 'updated'>)
     mapa.set(chave, componente)
   }
 
-  // Custo do item: o digitado (folhas) ou o rolado dos filhos (fabricados)
+  // Custo do item da BOM:
+  // - componente de terceiros: o custo efetivo (planilha > cadastro > 0);
+  // - fabricado: rolagem dos filhos recalculada com os custos efetivos.
   const custoGravado =
-    linha.tipo === 'componente_terceiros' ? linha.custoUnitario : (no.custoRolado ?? 0)
+    linha.tipo === 'componente_terceiros'
+      ? custoEfetivo(linha.custoUnitario, componente)
+      : custoEfetivoNo(no, mapa)
 
   const item = await bomsService.createItem({
     bom_id: bomId,

@@ -45,6 +45,14 @@ export interface NoImportado {
   /** Custo unitário por rolagem (fabricados) — preenchido no preview. */
   custoRolado?: number
   /**
+   * Custo EFETIVO com a regra de preço aplicada (planilha > cadastro > 0),
+   * anotado pelo diálogo do preview quando o cadastro de componentes é
+   * conhecido — mostra na árvore o preço que de fato será gravado.
+   */
+  custoEfetivo?: number
+  /** true quando o custo efetivo veio do cadastro (planilha sem preço). */
+  custoHerdado?: boolean
+  /**
    * Tipo ausente ou não reconhecido na planilha: resolvido no fim da
    * interpretação (raiz → produto_final; com filhos → componente_interno;
    * folha → componente_terceiros) com aviso, sem bloquear a importação.
@@ -57,6 +65,8 @@ export interface BomsInterpretados {
   erros: ErroImportacao[]
   avisos: AvisoImportacao[]
   totalLinhas: number
+  /** Itens que vieram sem preço (célula vazia ou zero): herdam o preço do cadastro, ou 0 se novos. */
+  itensSemPreco: number
 }
 
 // ---------------------------------------------------------------------------
@@ -389,7 +399,14 @@ export function interpretarBoms(rows: Record<string, unknown>[]): BomsInterpreta
     if (!normalizarTipo(linha.tipoBruto)) no.tipoDesconhecido = true
     if (!linha.temQuantidade) no.avisos.push('Quantidade ausente')
     else if (linha.quantidade <= 0) no.avisos.push('Quantidade igual a zero')
-    if (!linha.temCusto) no.avisos.push('Custo unitário ausente')
+    if (!linha.temCusto)
+      no.avisos.push(
+        'Custo unitário ausente — será usado o preço já cadastrado (ou zero, se o item for novo)',
+      )
+    else if (linha.custoUnitario <= 0)
+      no.avisos.push(
+        'Custo unitário igual a zero — será usado o preço já cadastrado (ou zero, se o item for novo)',
+      )
 
     // --- Código repetido ---------------------------------------------------
     // O MESMO componente de terceiros aparece em várias listas da planilha
@@ -485,7 +502,18 @@ export function interpretarBoms(rows: Record<string, unknown>[]): BomsInterpreta
     avisoFabricadoSemFilhos(r)
   })
 
-  return { boms: raizes, erros, avisos, totalLinhas }
+  // Contagem de itens sem preço (célula vazia ou zero) — válida para todos
+  // os tipos importados (produto acabado, terceiros, interno, KIT). O aviso
+  // resumido usa esse número: itens existentes herdam o preço do cadastro,
+  // itens novos entram com valor zerado.
+  let itensSemPreco = 0
+  const contarSemPreco = (no: NoImportado) => {
+    if (no.status !== 'erro' && no.linha.custoUnitario <= 0) itensSemPreco++
+    no.filhos.forEach(contarSemPreco)
+  }
+  raizes.forEach(contarSemPreco)
+
+  return { boms: raizes, erros, avisos, totalLinhas, itensSemPreco }
 }
 
 // ---------------------------------------------------------------------------
