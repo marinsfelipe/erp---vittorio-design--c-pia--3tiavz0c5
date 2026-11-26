@@ -105,6 +105,11 @@ export async function gravarImportacaoBom(
 
   for (const raiz of raizes) {
     const chaveSku = raiz.linha.codigo.toUpperCase()
+    // Taxas zeradas por padrão quando a raiz da planilha NÃO é produto final
+    // (semi-acabado, componente interno, KIT): o percentual desses é configurado
+    // individualmente na Precificação. Produto final nasce com os globais.
+    const taxasRaiz =
+      raiz.linha.tipo === 'produto_final' ? {} : { overhead_percentual: 0, margem_percentual: 0 }
     passos++
     onProgress?.(`Gravando BOM ${passos}/${total}: ${raiz.linha.codigo}`)
 
@@ -119,6 +124,7 @@ export async function gravarImportacaoBom(
         sku: raiz.linha.codigo,
         nome: raiz.linha.descricao || raiz.linha.codigo,
         categoria: raiz.linha.categoria,
+        ...taxasRaiz,
       } as Omit<Bom, 'id' | 'created' | 'updated'>)
       bomsPorSku.set(chaveSku, criado)
       bom = criado

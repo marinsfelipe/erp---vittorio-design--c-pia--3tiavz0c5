@@ -79,8 +79,21 @@ export function NovaBomDialog({
   const [descricao, setDescricao] = useState('')
   const [categoria, setCategoria] = useState('Balcões Refrigerados')
   const [tipoRaiz, setTipoRaiz] = useState<TipoItemBom>('produto_final')
+  // Taxas zeradas por padrão para raiz NÃO produto_final (regra do usuário:
+  // apenas Produto acabado nasce com os percentuais globais — overhead/margem
+  // dos demais é configurado individualmente na Precificação).
   const [overhead, setOverhead] = useState(String(defaultOverhead))
   const [margem, setMargem] = useState(String(defaultMargem))
+  const trocarTipoRaiz = (t: TipoItemBom) => {
+    setTipoRaiz(t)
+    if (t === 'produto_final') {
+      setOverhead(String(defaultOverhead))
+      setMargem(String(defaultMargem))
+    } else {
+      setOverhead('0')
+      setMargem('0')
+    }
+  }
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
@@ -183,8 +196,9 @@ export function NovaBomDialog({
         nome: nome.trim(),
         descricao: descricao.trim(),
         categoria: (selected.categoria || categoria || '').trim(),
-        overhead_percentual: parseFloat(overhead) || defaultOverhead,
-        margem_percentual: parseFloat(margem) || defaultMargem,
+        overhead_percentual:
+          tipoRaiz === 'produto_final' ? parseFloat(overhead) || defaultOverhead : 0,
+        margem_percentual: tipoRaiz === 'produto_final' ? parseFloat(margem) || defaultMargem : 0,
       } as any)
       // Item raiz gravado como nível 1 e item_tipo 'produto_final' — é essa a
       // convenção do banco (e o que montarArvore procura como raiz). O tipo real
@@ -318,7 +332,7 @@ export function NovaBomDialog({
               <select
                 className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
                 value={tipoRaiz}
-                onChange={(e) => setTipoRaiz(e.target.value as TipoItemBom)}
+                onChange={(e) => trocarTipoRaiz(e.target.value as TipoItemBom)}
               >
                 {TIPOS_ITEM_BOM.filter((t) => t.value !== 'componente_terceiros').map((t) => (
                   <option key={t.value} value={t.value}>
