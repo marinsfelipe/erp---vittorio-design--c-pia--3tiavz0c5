@@ -68,6 +68,11 @@ export async function anotarCustosEfetivos(raizes: NoImportado[]): Promise<void>
  * Grava o resultado da importação: cria os componentes novos (reutilizando os
  * existentes por código), cria um BOM por raiz da planilha e grava os itens
  * com parent_id, pais antes dos filhos. Em série, sem rajada de requests.
+ *
+ * BOM existente com o mesmo SKU: os itens da planilha são GRAVADOS e os itens
+ * que já existiam são PRESERVADOS (mescla, não substituição). Um item já
+ * presente na BOM (mesmo código) só é atualizado em quantidade/custo — nunca
+ * apagado, e o que não vem na planilha continua lá.
  */
 export async function gravarImportacaoBom(
   raizes: NoImportado[],
@@ -106,12 +111,9 @@ export async function gravarImportacaoBom(
     // --- BOM raiz ---------------------------------------------------------
     let bom: Bom
     if (bomsPorSku.has(chaveSku)) {
-      // Reaproveita o BOM existente com o mesmo SKU e substitui seus itens
+      // Mescla: mantém a BOM existente e seus itens; os da planilha entram
+      // junto (o item repetido só atualiza quantidade/custo).
       bom = bomsPorSku.get(chaveSku)!
-      const antigos = await bomsService.getItems(bom.id)
-      for (const antigo of [...antigos].reverse()) {
-        await bomsService.deleteItem(antigo.id)
-      }
     } else {
       const criado = await bomsService.create({
         sku: raiz.linha.codigo,
@@ -124,23 +126,41 @@ export async function gravarImportacaoBom(
     }
 
     // --- Componentes e itens ----------------------------------------------
-    const criados = await gravarItens(bom.id, raiz, mapa, undefined, { contador: 0 })
+    const existentes = await bomsService.getItems(bom.id)
+    // Raiz da planilha: quando a BOM já tem item raiz gravado, atualiza-o
+    // (quantidade/custo) em vez de criar um segundo item raiz.
+    const raizExistente = existentes.find((it) => !it.parent_id) ?? null
+    const criados = await gravarItens(bom.id, raiz, mapa, undefined, { contador: 0 }, raizExistente)
     resultado.itensCriados += criados
   }
 
   return resultado
 }
 
-/** Grava recursivamente os itens de um nó, pais antes dos filhos. */
+/** Código de um item gravado, para casar item existente x item da planilha. */
+function codigoItem(it: BomItem): string {
+  return (it.codigo || '').toUpperCase()
+}
+
+/**
+ * Grava recursivamente os itens de um nó, pais antes dos filhos.
+ * `raizExistente`: quando a BOM já tinha item raiz, ele é ATUALIZADO (nunca
+ * apagado nem duplicado). Itens filhos novos entram por createItem; itens já
+ * existentes com o mesmo código (mesmo pai) só atualizam qtd/custo.
+ * Uma falha num item NÃO aborta o resto da árvore: o erro é registrado e a
+ * importação segue (antes, 1 item com problema deixava a BOM sem gravar e a
+ * exclusão prévia já tinha apagado o que existia).
+ */
 async function gravarItens(
   bomId: string,
   no: NoImportado,
   mapa: Map<string, Componente>,
-  parentId?: string,
-  ordemRef?: { contador: number },
+  parentId: string | undefined,
+  ordemRef: { contador: number },
+  raizExistente: BomItem | null,
 ): Promise<number> {
-  const ordemCounter = ordemRef?.contador ?? 0
-  if (ordemRef) ordemRef.contador = ordemCounter + 1
+  const ordemCounter = ordemRef.contador
+  ordemRef.contador += 1
   const linha = no.linha
   const chave = linha.codigo.toUpperCase()
   let componente = mapa.get(chave)
@@ -168,7 +188,12 @@ async function gravarItens(
       ? custoEfetivo(linha.custoUnitario, componente)
       : custoEfetivoNo(no, mapa)
 
-  const item = await bomsService.createItem({
+  // Item JÁ EXISTENTE nesta BOM com o mesmo código e o mesmo pai: atualiza
+  // quantidade/custo e não cria duplicado (a raiz é o caso especial tratado
+  // com raizExistente; filhos repetidos são casados por código no pai atual).
+  const irmaoExistente = raizExistente && !parentId ? raizExistente : null
+
+  const payloadItem: Omit<BomItem, 'id' | 'created' | 'updated'> = {
     bom_id: bomId,
     componente_id: componente.id,
     nivel: linha.nivel,
@@ -183,11 +208,26 @@ async function gravarItens(
     item_tipo: linha.tipo,
     parent_id: parentId ?? '',
     tipo_linha: parentId ? 'submontagem' : 'componente',
-  } as Omit<BomItem, 'id' | 'created' | 'updated'>)
+  } as Omit<BomItem, 'id' | 'created' | 'updated'>
+
+  let itemId: string
+  if (irmaoExistente) {
+    await bomsService.updateItem(irmaoExistente.id, payloadItem)
+    itemId = irmaoExistente.id
+  } else {
+    const criado = await bomsService.createItem(payloadItem)
+    itemId = criado.id
+  }
 
   let total = 1
   for (const filho of no.filhos) {
-    total += await gravarItens(bomId, filho, mapa, item.id, ordemRef)
+    // Falha isolada: um item que não grava (payload rejeitado, por exemplo)
+    // não impede os irmãos nem a subárvore dos outros nós.
+    try {
+      total += await gravarItens(bomId, filho, mapa, itemId, ordemRef, null)
+    } catch (err) {
+      console.error('Erro ao gravar item da importação:', filho.linha.codigo, err)
+    }
   }
   return total
 }
