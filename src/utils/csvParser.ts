@@ -1,3 +1,5 @@
+import { normalizarTexto } from '@/utils/textDecode'
+
 export function parseCsvOrTsv(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = text
     .split(/\r?\n/)
@@ -138,12 +140,14 @@ export function mapRowToComponente(row: Record<string, string>): {
     normKeys['vendor'] ||
     'Geral'
 
+  // Normaliza textos (repara mojibake, colapsa espaços) antes de gravar —
+  // regra única do sistema para texto de usuário.
   return {
-    codigo: codigo.trim().toUpperCase(),
-    descricao: descricao.trim(),
-    categoria: categoria.trim(),
-    unidade: unidade.trim().toUpperCase(),
+    codigo: normalizarTexto(codigo).toUpperCase(),
+    descricao: normalizarTexto(descricao),
+    categoria: normalizarTexto(categoria),
+    unidade: normalizarTexto(unidade).toUpperCase(),
     custo_unitario,
-    fornecedor: fornecedor.trim(),
+    fornecedor: normalizarTexto(fornecedor),
   }
 }

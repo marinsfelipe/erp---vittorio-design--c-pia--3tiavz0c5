@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx'
 import type { TipoItemBom } from '@/types/erp'
 import { aceitaFilhos } from '@/types/erp'
 import { parseCsvOrTsv } from '@/utils/csvParser'
-import { lerTextoArquivo } from '@/utils/textDecode'
+import { lerTextoArquivo, normalizarTexto } from '@/utils/textDecode'
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -204,7 +204,8 @@ function mapearLinha(row: Record<string, unknown>, numeroLinha: number): LinhaIm
   return {
     linha: numeroLinha,
     nivel: nivelOk ? nivel : -1,
-    codigo:
+    // Regra única de texto: normaliza (repara mojibake) antes de gravar
+    codigo: normalizarTexto(
       buscar(
         ...chaves(
           'codigo',
@@ -217,16 +218,20 @@ function mapearLinha(row: Record<string, unknown>, numeroLinha: number): LinhaIm
           'ref',
         ),
       ) || codigoSemCabecalho,
-    descricao:
+    ).toUpperCase(),
+    descricao: normalizarTexto(
       buscar(...chaves('descricao', 'description', 'desc', 'nome', 'item')) ||
-      descricaoSemCabecalho,
+        descricaoSemCabecalho,
+    ),
     tipo: tipo ?? ('componente_terceiros' as TipoItemBom),
     tipoBruto,
-    categoria: buscar(...chaves('categoria', 'category', 'grupo')) || 'Geral',
-    unidade: (buscar(...chaves('unidade', 'und', 'un', 'unit')) || 'UN').toUpperCase(),
+    categoria: normalizarTexto(buscar(...chaves('categoria', 'category', 'grupo')) || 'Geral'),
+    unidade: normalizarTexto(
+      buscar(...chaves('unidade', 'und', 'un', 'unit')) || 'UN',
+    ).toUpperCase(),
     quantidade,
     custoUnitario,
-    fornecedor: buscar(...chaves('fornecedor', 'fabricante', 'supplier')) || '',
+    fornecedor: normalizarTexto(buscar(...chaves('fornecedor', 'fabricante', 'supplier'))),
     temQuantidade,
     temCusto,
   }

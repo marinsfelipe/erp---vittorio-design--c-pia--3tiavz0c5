@@ -36,6 +36,7 @@ import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 import { useEdicaoLote } from '@/hooks/useEdicaoLote'
 import type { CampoLote } from '@/hooks/useEdicaoLote'
+import { normalizarBusca, normalizarTexto } from '@/utils/textDecode'
 import { Checkbox } from '@/components/ui/checkbox'
 
 const CAMPOS_LOTE_COMPONENTES: CampoLote[] = [
@@ -131,11 +132,7 @@ export default function ComponentesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, selectedCategoria, selectedUnidade])
 
-  const normalizar = (s: string) =>
-    s
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+  const normalizar = normalizarBusca
 
   const categorias = Array.from(
     new Set(todosComponentes.map((c) => c.categoria).filter(Boolean)),
@@ -198,23 +195,23 @@ export default function ComponentesPage() {
     try {
       if (editingItem) {
         await componentesService.update(editingItem.id, {
-          codigo: formData.codigo.trim().toUpperCase(),
-          descricao: formData.descricao.trim(),
-          categoria: formData.categoria.trim(),
-          unidade: formData.unidade.trim().toUpperCase(),
+          codigo: normalizarTexto(formData.codigo).toUpperCase(),
+          descricao: normalizarTexto(formData.descricao),
+          categoria: normalizarTexto(formData.categoria),
+          unidade: normalizarTexto(formData.unidade).toUpperCase(),
           custo_unitario: custo,
-          fornecedor: formData.fornecedor.trim(),
+          fornecedor: normalizarTexto(formData.fornecedor),
           tipo: formData.tipo,
         })
         toast.success('Componente atualizado com sucesso!')
       } else {
         await componentesService.create({
-          codigo: formData.codigo.trim().toUpperCase(),
-          descricao: formData.descricao.trim(),
-          categoria: formData.categoria.trim(),
-          unidade: formData.unidade.trim().toUpperCase(),
+          codigo: normalizarTexto(formData.codigo).toUpperCase(),
+          descricao: normalizarTexto(formData.descricao),
+          categoria: normalizarTexto(formData.categoria),
+          unidade: normalizarTexto(formData.unidade).toUpperCase(),
           custo_unitario: custo,
-          fornecedor: formData.fornecedor.trim(),
+          fornecedor: normalizarTexto(formData.fornecedor),
           tipo: formData.tipo,
         })
         toast.success('Componente cadastrado com sucesso!')

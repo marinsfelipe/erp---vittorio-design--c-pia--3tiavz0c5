@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Loader2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/AuthContext'
+import { normalizarTexto } from '@/utils/textDecode'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
@@ -126,7 +127,7 @@ export function useEdicaoLote({
     const ids = Array.from(selecionados)
     if (ids.length === 0) return
 
-    const escolhidos = Object.entries(valores).filter(([, v]) => v && v.trim() !== '')
+    const escolhidos = Object.entries(valores).filter(([, v]) => normalizarTexto(v) !== '')
     if (escolhidos.length === 0) {
       toast.error('Preencha pelo menos um campo para alterar.')
       return
@@ -135,7 +136,8 @@ export function useEdicaoLote({
     setAplicando(true)
     try {
       const payload: Record<string, string> = {}
-      for (const [k, v] of escolhidos) payload[k] = v.trim()
+      // Regra única de texto: normaliza (repara mojibake, trim) antes de gravar
+      for (const [k, v] of escolhidos) payload[k] = normalizarTexto(v)
 
       const { atualizados, erros } = await aplicar(ids, payload)
 

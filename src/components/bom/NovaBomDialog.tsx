@@ -20,6 +20,7 @@ import { Search, Check, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatBRL } from '@/utils/formatters'
 import { podePossuirBOM } from '@/types/erp'
+import { normalizarBusca, normalizarTexto } from '@/utils/textDecode'
 
 export interface NovaBomForm {
   sku: string
@@ -136,10 +137,10 @@ export function NovaBomDialog({
   )
 
   const resultados = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = normalizarBusca(search)
     if (!q) return []
     return componentes
-      .filter((c) => `${c.codigo} ${c.descricao}`.toLowerCase().includes(q))
+      .filter((c) => normalizarBusca(`${c.codigo} ${c.descricao}`).includes(q))
       .slice(0, 30)
   }, [componentes, search])
 
@@ -193,9 +194,9 @@ export function NovaBomDialog({
     try {
       const created = await bomsService.create({
         sku,
-        nome: nome.trim(),
-        descricao: descricao.trim(),
-        categoria: (selected.categoria || categoria || '').trim(),
+        nome: normalizarTexto(nome),
+        descricao: normalizarTexto(descricao),
+        categoria: normalizarTexto(selected.categoria || categoria || ''),
         overhead_percentual:
           tipoRaiz === 'produto_final' ? parseFloat(overhead) || defaultOverhead : 0,
         margem_percentual: tipoRaiz === 'produto_final' ? parseFloat(margem) || defaultMargem : 0,
@@ -209,8 +210,8 @@ export function NovaBomDialog({
         nivel: 1,
         ordem: 1,
         codigo: sku,
-        descricao: nome.trim(),
-        categoria: (selected.categoria || categoria || '').trim(),
+        descricao: normalizarTexto(nome),
+        categoria: normalizarTexto(selected.categoria || categoria || ''),
         unidade: 'UN',
         quantidade: 1,
         custo_unitario: 0,

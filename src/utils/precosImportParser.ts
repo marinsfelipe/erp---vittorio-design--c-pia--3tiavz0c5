@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx'
 import { parseCsvOrTsv } from '@/utils/csvParser'
-import { lerTextoArquivo } from '@/utils/textDecode'
+import { lerTextoArquivo, normalizarTexto } from '@/utils/textDecode'
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -282,15 +282,16 @@ export function mapearLinhasPrecos(rows: Record<string, unknown>[]): LinhaPrecos
 
     out.push({
       linha: i + 2, // linha 1 = cabeçalho
-      codigo,
-      descricao,
-      unidade,
-      categoria,
+      // Regra única de texto: normaliza (repara mojibake) antes de gravar
+      codigo: normalizarTexto(codigo).toUpperCase(),
+      descricao: normalizarTexto(descricao),
+      unidade: normalizarTexto(unidade).toUpperCase(),
+      categoria: normalizarTexto(categoria),
       precoFinal,
       temPreco,
       precoBruto,
-      fornecedor,
-      observacao,
+      fornecedor: normalizarTexto(fornecedor),
+      observacao: normalizarTexto(observacao),
     })
   }
   return out

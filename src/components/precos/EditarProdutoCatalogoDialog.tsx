@@ -14,6 +14,7 @@ import {
 import { Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatarCest } from '@/components/precos/CestCell'
+import { normalizarTexto } from '@/utils/textDecode'
 
 /**
  * Botão + diálogo para o admin editar as características de um produto do
@@ -50,7 +51,7 @@ export default function EditarProdutoCatalogoDialog({
       toast.error('O NCM deve conter exatamente 8 dígitos numéricos.')
       return
     }
-    if (!nome.trim()) {
+    if (!normalizarTexto(nome)) {
       toast.error('Informe o nome do produto.')
       return
     }
@@ -62,8 +63,8 @@ export default function EditarProdutoCatalogoDialog({
     setSalvando(true)
     try {
       await bomsService.update(bom.id, {
-        nome: nome.trim(),
-        descricao: descricao.trim(),
+        nome: normalizarTexto(nome),
+        descricao: normalizarTexto(descricao),
         ...(ncmLimpo
           ? {
               ncm: ncmLimpo,

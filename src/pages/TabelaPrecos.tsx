@@ -7,6 +7,7 @@ import { LABEL_ORIGEM_NCM } from '@/types/erp'
 import { formatBRL, formatPercent } from '@/utils/formatters'
 import { montarArvore, calcularCustoConsolidado, montarContextoCusto } from '@/utils/bomTree'
 import { montarPercentuais, calcularMarkupDivisor } from '@/utils/pricing'
+import { normalizarBusca } from '@/utils/textDecode'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -219,12 +220,12 @@ export default function TabelaPrecosPage() {
   // Filtragem
   const rowsFiltradas = useMemo(() => {
     return rows.filter((r) => {
-      const q = searchTerm.trim().toLowerCase()
+      const q = normalizarBusca(searchTerm)
       const matchTexto =
         !q ||
-        r.sku.toLowerCase().includes(q) ||
-        r.nome.toLowerCase().includes(q) ||
-        r.categoria.toLowerCase().includes(q)
+        normalizarBusca(r.sku).includes(q) ||
+        normalizarBusca(r.nome).includes(q) ||
+        normalizarBusca(r.categoria).includes(q)
 
       const matchOrigem =
         filtroOrigem === 'todos' ||

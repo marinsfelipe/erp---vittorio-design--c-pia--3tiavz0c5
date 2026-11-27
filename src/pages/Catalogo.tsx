@@ -30,6 +30,7 @@ import NcmCell from '@/components/precos/NcmCell'
 import CestCell from '@/components/precos/CestCell'
 import ClassificarNcmLoteButton from '@/components/precos/ClassificarNcmLoteButton'
 import EditarProdutoCatalogoDialog from '@/components/precos/EditarProdutoCatalogoDialog'
+import { normalizarBusca } from '@/utils/textDecode'
 
 const statusLabels: Record<string, string> = {
   rascunho: 'Rascunho',
@@ -182,14 +183,14 @@ export default function CatalogoPage() {
     if (filtroCategoria !== 'todas' && (it.bom?.categoria || '') !== filtroCategoria) return false
     if (filtroStatusFiscal !== 'todos' && statusFiscalDe(it) !== filtroStatusFiscal) return false
 
-    if (!searchTerm.trim()) return true
-    const q = searchTerm.toLowerCase()
+    const q = normalizarBusca(searchTerm)
+    if (!q) return true
     const prop = propostas.find((p) => p.id === it.proposta_id)
     return (
-      it.sku.toLowerCase().includes(q) ||
-      (it.nome_produto || '').toLowerCase().includes(q) ||
-      (prop?.cliente || '').toLowerCase().includes(q) ||
-      (it.preco_direto && 'preço direto preco direto avulso'.includes(q))
+      normalizarBusca(it.sku).includes(q) ||
+      normalizarBusca(it.nome_produto || '').includes(q) ||
+      normalizarBusca(prop?.cliente || '').includes(q) ||
+      (it.preco_direto && normalizarBusca('preço direto avulso').includes(q))
     )
   })
 

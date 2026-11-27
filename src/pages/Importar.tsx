@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { componentesService } from '@/services/componentes'
 import { parseCsvOrTsv, mapRowToComponente } from '@/utils/csvParser'
-import { lerTextoArquivo } from '@/utils/textDecode'
+import { lerTextoArquivo, normalizarTexto } from '@/utils/textDecode'
 import { formatBRL } from '@/utils/formatters'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -70,8 +70,8 @@ export default function ImportarPage() {
         const mapped = mapRowToComponente(r)
         if (!mapped) {
           return {
-            codigo: r['codigo'] || r['cod'] || '—',
-            descricao: r['descricao'] || 'Falta código ou descrição',
+            codigo: normalizarTexto(r['codigo'] || r['cod'] || '—').toUpperCase(),
+            descricao: normalizarTexto(r['descricao'] || 'Falta código ou descrição'),
             categoria: '—',
             unidade: 'UN',
             custo_unitario: 0,

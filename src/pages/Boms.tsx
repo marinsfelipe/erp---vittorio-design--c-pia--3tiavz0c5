@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/select'
 import { Search, SearchX } from 'lucide-react'
 import { useEdicaoLote } from '@/hooks/useEdicaoLote'
+import { normalizarBusca } from '@/utils/textDecode'
 
 interface BomWithStats extends Bom {
   itemCount: number
@@ -234,19 +235,19 @@ export default function BomsPage() {
     }
     // "tipo" do filtro: status fiscal (pronto para NF / pendente fiscal)
 
-    const q = searchTerm.trim().toLowerCase()
+    const q = normalizarBusca(searchTerm)
     if (!q) return true
     if (l.tipo === 'com_bom') {
       return (
-        l.bom.sku.toLowerCase().includes(q) ||
-        l.bom.nome.toLowerCase().includes(q) ||
-        (l.bom.descricao || '').toLowerCase().includes(q)
+        normalizarBusca(l.bom.sku).includes(q) ||
+        normalizarBusca(l.bom.nome).includes(q) ||
+        normalizarBusca(l.bom.descricao || '').includes(q)
       )
     }
     return (
-      (l.comp.codigo || '').toLowerCase().includes(q) ||
-      (l.comp.descricao || '').toLowerCase().includes(q) ||
-      (l.comp.fornecedor || '').includes(searchTerm.trim())
+      normalizarBusca(l.comp.codigo || '').includes(q) ||
+      normalizarBusca(l.comp.descricao || '').includes(q) ||
+      normalizarBusca(l.comp.fornecedor || '').includes(q)
     )
   })
 

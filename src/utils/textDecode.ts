@@ -95,3 +95,17 @@ export function textoTemMojibake(s: string | null | undefined): boolean {
   if (!s) return false
   return String(s).includes('\uFFFD') || /[ÃÂ][\u0080-\u00BF]/.test(String(s))
 }
+
+/**
+ * Lê um arquivo (CSV/TSV/XLSX-derivado) como texto detectando a codificação:
+ * tenta UTF-8 estrito e, se houver byte inválido, refaz como windows-1252
+ * (Latin-1) — evita "El�trica" em planilhas salvas no Excel brasileiro.
+ */
+export async function lerTextoArquivo(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  const utf8 = new TextDecoder('utf-8', { fatal: false }).decode(buffer)
+  // Detecta bytes UTF-8 de múltiplos bytes válidos? Se o texto decodificado
+  // contém U+FFFD, o arquivo não é UTF-8 válido — refaz como windows-1252.
+  if (!utf8.includes('\uFFFD')) return utf8
+  return new TextDecoder('windows-1252').decode(buffer)
+}
